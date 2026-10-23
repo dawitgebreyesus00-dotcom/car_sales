@@ -1,0 +1,838 @@
+# NEW CARS MAIN PAGE — COMPLETE IMPLEMENTATION DOCUMENTATION
+
+**Project:** `car_sales`\
+**Framework:** Flutter and Dart\
+**Platform:** Android\
+**Market:** Ethiopia\
+**Scope:** New Cars home page only\
+**Purpose:** Guide OpenCode to inspect, improve, and complete the New Cars page without unnecessarily rebuilding the application.
+
+---
+
+# 1. PROJECT OBJECTIVE
+
+Build a professional, responsive New Cars home page for an Ethiopian car sales application.
+
+The page must provide car discovery, recommendations, brand browsing, filtering, comparisons, and recent automotive updates in one continuous scrollable layout.
+
+Some sections, such as Compare Cars and Latest Car Updates, are previews of functionality that belongs to existing Compare and News sections. These previews must reuse the existing application's data, models, widgets, and routes instead of duplicating entire features.
+
+## Core rules
+
+1. Inspect the existing project before editing.
+2. Preserve correct and useful code.
+3. Repair broken code.
+4. Update incomplete components.
+5. Remove genuinely redundant code only after verifying it is safe to remove.
+6. Reuse existing models, assets, navigation, state management, and services.
+7. Do not rewrite the entire page unnecessarily.
+8. Preserve Used Cars, Compare, News, and Alerts functionality.
+9. Use Ethiopian-market content and ETB prices.
+10. Do not claim an integration works unless it has been verified.
+
+---
+
+# 2. COMPLETE PAGE STRUCTURE
+
+Implement the sections in this exact order:
+*dont duplicate some featuresas much as you can if you need compare on new page use some features of it from compare.dart
+
+1. Header.
+2. Search bar.
+3. Find the Right Car By — quick filters.
+4. Promotional banner.
+5. Recently Viewed Cars.
+6. Continue Your Journey.
+7. Recommended For You.
+8. Price disclaimer.
+9. Featured Cars heading and tabs.
+10. Featured car carousel and View Price Breakdown.
+11. Explore by Brand.
+12. View All Brands.
+13. Explore By Popular Filters.
+14. Filter tabs and category chips.
+15. Filtered car list.
+16. View All filtered cars.
+17. Price disclaimer.
+18. Compare Cars preview carousel. use features/bottom/compare.dart  if you need some features related to compare
+19. More Comparisons. features/bottom/compare.dart use from compare page dont create everything from the scratch
+20. Latest Car Updates.
+21. Cars News, Expert Reviews, and Videos tabs. you can use from features /bottom /news
+22. Horizontal article or media cards.
+23. More News. use features/bottom/news/ if you need some features realted to news
+
+The sections belong to one New Cars home page. They must not be implemented as separate screens simply because they have different layouts.
+
+---
+
+# 3. GLOBAL VISUAL DESIGN
+
+## 3.1 Colors
+
+### Professional Color System for Ethiopian Car Sales Application
+
+This documentation defines a complete color system for a modern, professional Ethiopian car sales application with **Muted Blue** as the primary brand color.
+
+#### Primary Brand Color
+
+| Color | Hex | Purpose |
+|-------|-----|---------|
+| **Muted Blue** | `#647FA3` | Brand identity, selected navigation icons, active states, important highlights |
+| **Dark Muted Blue** | `#526D91` | Primary buttons (Search, Sell Your Car), prominent actions |
+| **Light Blue** | `#EAF0F7` | Selected filter chips, subtle highlights, light blue backgrounds |
+| **Deep Navy** | `#34465E` | Headings, important text, strong visual emphasis |
+
+#### Supporting Colors
+
+| Color | Hex | Purpose |
+|-------|-----|---------|
+| **White** | `#FFFFFF` | Main background color, car listing cards |
+| **Cool Gray** | `#F1F4F8` | Secondary sections, input backgrounds, subtle surfaces |
+| **Secondary Text Gray** | `#64748B` | Descriptions, subtitles, less important information |
+| **Border Gray** | `#D9E0E8` | Card borders, dividers, input outlines |
+
+#### Color Usage Rules
+
+- Use white as the dominant background color (≈60% of screen)
+- Use muted blue consistently as the primary brand color throughout the application
+- Use darker blue (#526D91) for important buttons with white text
+- Use light blue (#EAF0F7) for selected filters and subtle highlights
+- Use deep navy (#34465E) for headings and important text
+- Use cool gray (#F1F4F8) for secondary backgrounds and input fields
+- Keep borders subtle (#D9E0E8) and avoid excessive shadows
+- Ensure text and icons have sufficient contrast against their backgrounds
+- Keep car photographs visually prominent by avoiding unnecessary colored backgrounds
+- Avoid using too many unrelated colors or gradients
+- Use **green** (#16A34A) for successful actions
+- Use **red** (#DC2626) for errors or destructive actions
+- Use **orange** (#F97316) only for relevant warnings
+
+#### Color Proportions (General Guidelines)
+
+- **60%** white backgrounds
+- **25%** light neutral surfaces and gray
+- **15%** blue accents and brand elements
+
+These proportions are flexible and should adapt to each screen.
+
+#### Navigation Design
+
+- Use a **white bottom navigation bar**
+- Use **muted blue** (#647FA3) for the selected navigation icon and label
+- Use **gray** for unselected icons and labels
+- Keep navigation icons consistent in size, stroke, and style
+- Use light blue (#EAF0F7) only for subtle selected-item backgrounds when appropriate
+- Maintain the same navigation style across all main pages
+
+#### Existing Color Tokens (Preserved for Backward Compatibility)
+
+| Token | Hex | Notes |
+|-------|-----|-------|
+| `brandAccent` | `#1B5E20` | Ethiopian flag green (legacy) |
+| `teal` | `#0F8F83` | Legacy premium teal |
+| `success` | `#16A34A` | Green for successful actions |
+| `warning` | `#D97706` | Amber for warnings |
+| `error` | `#DC2626` | Red for errors/destructive actions |
+| `priceAccent` | `#E65100` | Amber for prices |
+
+#### Color Implementation in Flutter
+
+All colors are defined in `lib/core/constants/app_colors.dart` as `static const Color` values. Use the `AppColors` class throughout the application instead of defining colors inline.
+
+**Example Usage:**
+
+```dart
+// Primary brand color
+Container(color: AppColors.brandPrimary), // #647FA3
+
+// Darker blue for buttons
+ElevatedButton(
+  style: ElevatedButton.styleFrom(
+    backgroundColor: AppColors.brandPrimaryDark, // #526D91
+    foregroundColor: Colors.white,
+  ),
+  onPressed: () {},
+  child: const Text('Search'),
+)
+
+// Light blue for selected filters
+Container(
+  color: AppColors.brandPrimaryLight, // #EAF0F7
+  child: const FilterChip(label: Text('SUV')),
+)
+
+// Deep navy for headings
+Text(
+  style: TextStyle(
+    color: AppColors.brandDeepNavy, // #34465E
+    fontWeight: FontWeight.w600,
+  ),
+  text: 'Used Cars',
+)
+
+// Border gray
+Container(
+  decoration: BoxDecoration(
+    border: Border.all(color: AppColors.borderGray), // #D9E0E8
+  ),
+  child: const TextField(),
+)
+```
+
+## 3.2 Typography
+
+Use a consistent font family and hierarchy.
+
+- Main section headings: 24–30 logical pixels, semibold
+- Subsection headings: 18–22 logical pixels, semibold
+- Vehicle names: 15–19 logical pixels
+- Prices: 16–19 logical pixels, medium or semibold
+- Brand names and metadata: 13–16 logical pixels
+- Disclaimers: 14–16 logical pixels, gray
+- Buttons and tabs: 15–18 logical pixels
+
+Prevent text clipping. Allow names and descriptions to wrap naturally.
+
+## 3.3 Spacing and cards
+
+Suggested starting values:
+
+- Horizontal page margins: 20–30 logical pixels
+- Small gaps: 8 logical pixels
+- Standard gaps: 16 logical pixels
+- Major section spacing: 28–40 logical pixels
+- Card corner radius: 10–16 logical pixels
+- Section corner radius: 16–22 logical pixels
+
+Use subtle borders and restrained shadows. Avoid unnecessarily dark cards or heavy visual effects.
+
+## 3.4 Icons and images
+
+Use consistent outline icons for search, menu, location, favorites, filters, comparison, news, and navigation.
+
+Reuse existing icon libraries and image assets. Avoid introducing dependencies unnecessarily.
+
+Vehicle images must retain their aspect ratios, use suitable image fitting, and have fallbacks for missing assets. Do not stretch images to fit card dimensions.
+
+---
+
+# 4. HEADER AND SEARCH BAR
+
+## 4.1 Header
+
+Display:
+
+- Hamburger menu on the left.
+- Existing app logo or brand identity.
+- Location icon toward the right.
+- Favorites heart at the far right.
+
+Use a white or very light gray background, balanced spacing, consistent icon sizes, and proper Android safe-area handling.
+
+Reuse the existing shared header if one already exists. Do not create a duplicate header.
+
+## 4.2 Search bar
+
+Place a wide search field immediately below the header.
+
+Suggested hint:
+
+"Search for your car, e.g. Creta"
+
+Include:
+
+- Search icon on the right.
+- White background.
+- Light gray border.
+- Rounded corners.
+- Comfortable padding.
+- Subtle shadow.
+
+Reuse the existing search logic and data source. Do not invent a backend endpoint.
+
+## 4.3 Pinned behavior
+
+Keep the header and search area visible while the user scrolls, consistent with the intended design.
+
+Use the existing app-bar or scroll architecture if it works correctly. Ensure the pinned elements do not cover content or conflict with Android system bars.
+
+---
+
+# 5. FIND THE RIGHT CAR BY
+
+Display the heading:
+
+**Find the Right Car By**
+
+Add a horizontally scrollable row of compact filter cards:
+
+1. Budget.
+2. Body Type.
+3. Fuel Type.
+4. Transmission or the equivalent existing filter.
+
+Each card contains:
+
+- Outline icon.
+- Filter label.
+- Pale teal icon background.
+- White surface.
+- Thin gray border.
+- Rounded corners.
+
+Reuse existing filter dialogs and logic. If functionality is missing, clearly document the missing integration rather than pretending it works.
+
+---
+
+# 6. PROMOTIONAL BANNER
+
+Place a large landscape promotional banner below the quick filters.
+
+Requirements:
+
+- Wide image.
+- Rounded corners.
+- Consistent side margins.
+- Appropriate image fitting.
+- No stretching.
+- Adequate vertical spacing.
+
+Use an existing suitable asset. If none exists, use a clearly identified placeholder rather than an unrelated or misleading image.
+
+---
+
+# 7. RECENTLY VIEWED CARS
+
+Create a pale blue-gray rounded container titled:
+
+**Recently Viewed Cars**
+
+Display horizontally scrollable compact cards containing:
+
+- Vehicle image.
+- Brand.
+- Model.
+
+Use white card surfaces, subtle borders, rounded corners, and consistent spacing.
+
+Reuse existing browsing history if available. If it is not implemented, use clearly identified sample data during development rather than claiming the vehicles were actually viewed.
+
+Tapping a vehicle should open the existing vehicle details route when available.
+
+---
+
+# 8. CONTINUE YOUR JOURNEY
+
+Display:
+
+**Continue Your Journey**
+
+Use compact category chips, including SUV and other supported categories such as Sedan, Petrol, and Electric.
+
+Each chip should have:
+
+- Outline icon.
+- Pale teal icon background.
+- White background.
+- Thin border.
+- Rounded corners.
+- Clear label.
+
+Use existing category and history logic where available. Otherwise, provide configurable categories without falsely representing them as personal browsing history.
+
+---
+
+# 9. RECOMMENDED FOR YOU
+
+Create a separate pale blue-gray rounded container titled:
+
+**Recommended For You**
+
+Display a multi-row grid of vehicle cards.
+
+Each card contains:
+
+1. Vehicle image.
+2. Brand name.
+3. Model name.
+4. ETB price or price range, if available.
+
+Use compact white cards, rounded corners, subtle borders, and consistent spacing.
+
+Use the existing recommendation logic if available. Otherwise, display clearly identified sample catalog content.
+
+Do not present unverified prices as market facts. Use "Contact for price" where necessary.
+
+Tapping a card should open the existing vehicle details page.
+
+---
+
+# 10. PRICE DISCLAIMER
+
+Display an appropriate disclaimer near the relevant car catalog sections.
+
+Recommended wording:
+
+"Prices are indicative and may vary by location and dealer."
+
+Use a more specific on-road price disclaimer only when supported by the underlying data.
+
+Do not use Indian locations, INR, or Indian lakh-based pricing.
+
+---
+
+# 11. FEATURED CARS
+
+Add the heading:
+
+**Featured Cars**
+
+## 11.1 Tabs
+
+Display three tabs in this order:
+
+1. Popular.
+2. Just Launched.
+3. Upcoming.
+
+Style the selected tab in teal with a teal underline. Use dark gray for unselected tabs.
+
+Changing tabs must update the displayed vehicles.
+
+Do not claim a vehicle is newly launched or upcoming unless the data supports that classification. Clearly label sample data.
+
+## 11.2 Featured vehicle cards
+
+Display horizontally scrollable cards containing:
+
+- Large landscape vehicle image.
+- Brand and model.
+- ETB price or price range.
+- Appropriate price description.
+- Outlined teal **View Price Breakdown** button.
+
+Maintain consistent image proportions, card spacing, rounded corners, and typography.
+
+## 11.3 Price breakdown
+
+Reuse an existing price-breakdown feature if one exists.
+
+If not, document the missing functionality.
+
+---
+
+# 12. EXPLORE BY BRAND
+
+Display:
+
+**Explore by Brand**
+
+Create a rounded white container with a thin gray border.
+
+Use a four-column grid where the available width permits.
+
+Initial example brand order:
+
+First row:
+
+1. Tata.
+2. Maruti Suzuki.
+3. Mahindra.
+4. Hyundai.
+
+Second row:
+
+5. BMW.
+6. Renault.
+7. Honda.
+8. Mercedes-Benz.
+
+Each cell contains a brand logo and centered brand name, with consistent padding and subtle dividers.
+
+Use existing logos where available. Provide a clean fallback when a logo is missing.
+
+At the bottom, add a full-width row labeled:
+
+**View All Brands**
+
+Reuse the existing brand catalog or filter route.
+
+---
+
+# 13. EXPLORE BY POPULAR FILTERS
+
+Add the heading:
+
+**Explore By Popular Filters**
+
+## 13.1 Filter tabs
+
+Display three tabs:
+
+1. Body Type.
+2. Budget.
+3. Fuel Type.
+
+Each tab includes an appropriate outline icon. Use teal for the selected tab and a teal underline. Use dark gray for unselected tabs.
+
+## 13.2 Body Type
+
+Initially select SUV.
+
+Display horizontally scrollable chips in this order:
+
+1. SUV.
+2. Sedan.
+3. Hatchback.
+3. MUV/MPV.
+5. Coupe.
+
+## 13.3 Budget
+
+When Budget is selected, show appropriate ETB price ranges based on the existing catalog.
+
+Do not use Indian rupees or lakh notation.
+
+## 13.4 Fuel Type
+
+When Fuel Type is selected, display supported categories such as:
+
+- Petrol.
+- Diesel.
+- Hybrid.
+- Electric.
+
+Do not show categories as available when the catalog does not support them unless clearly identified as future options.
+
+## 13.5 Filter behavior
+
+- Switching tabs updates the available chips.
+- Selecting a chip updates the filtered vehicle list.
+- Reuse existing filter state and models.
+- Avoid duplicate filtering logic.
+
+---
+
+# 14. FILTERED CAR LIST
+
+Below the chips, create a rounded light-gray container with a thin border.
+
+Initially, when SUV is selected, display three vehicles if the available data supports it.
+
+Each row contains:
+
+- Vehicle image on the left.
+- Brand and model on the right.
+- ETB price or indicative range.
+- Thin divider between rows.
+
+At the bottom, display:
+
+**View All SUV Cars**
+
+Update the label when another category is selected.
+
+Tapping a vehicle should open its existing details page. Tapping View All should open the existing filtered catalog.
+
+If those routes do not exist, document the missing integration.
+
+Add the price disclaimer below the list.
+
+---
+
+# 15. COMPARE CARS PREVIEW
+
+This section belongs on the New Cars home page, but the full comparison functionality belongs to the existing Compare section.
+
+Display:
+
+**Compare Cars**
+
+Create a horizontally scrollable preview carousel with a limited selection of comparisons.
+
+Each card contains:
+
+- First vehicle image.
+- First brand and model.
+- First vehicle price.
+- Centered VS marker.
+- Second vehicle image.
+- Second brand and model.
+- Second vehicle price.
+- Appropriate price description.
+- Outlined teal **Compare Cars** button.
+
+Use white or light-gray cards, subtle borders, rounded corners, and consistent spacing.
+
+## 15.1 Shared functionality rules
+
+Before implementing this preview:
+
+1. Inspect the existing Compare page.
+2. Identify its vehicle models, comparison logic, state management, and route.
+3. Reuse existing comparison data and models.
+4. Do not create a duplicate comparison engine or database.
+
+When a comparison is selected, open the existing Compare flow. If it supports preselected vehicles, pass their identifiers through the established navigation mechanism.
+
+## 15.2 More Comparisons
+
+Below the carousel, add:
+
+**More Comparisons**
+
+Use a full-width rounded, outlined teal button.
+
+It must navigate to the existing Compare page or catalog.
+
+Do not create a replacement Compare page just for this home-page section.
+
+---
+
+# 16. LATEST CAR UPDATES PREVIEW
+
+This section belongs on the New Cars home page as a preview. The complete news and media experience belongs to the existing News section.
+
+Display:
+
+**Latest Car Updates**
+
+Create three tabs in this order:
+
+1. Cars News.
+2. Expert Reviews.
+3. Videos.
+
+Use teal text and underline for the selected tab, with dark gray for the others.
+
+Switching tabs should update the preview content using existing category definitions and data.
+
+---
+
+# 17. NEWS, REVIEW, AND VIDEO CARDS
+
+Display horizontally scrollable cards containing:
+
+- Large landscape image.
+- Headline or media title.
+- Author, if available.
+- Publication date, if available.
+- Short summary, where applicable.
+- **Read More** action.
+
+Use white or very light gray backgrounds, subtle borders, rounded corners, and readable typography.
+
+Prevent image distortion and text overflow.
+
+## 17.1 Cars News
+
+Use existing automotive news data.
+
+Do not invent current stories, author names, dates, or article URLs. If no news source exists, use clearly identified sample content and document the missing integration.
+
+## 17.2 Expert Reviews
+
+Use existing review content if available. Otherwise, provide a documented placeholder.
+
+## 17.3 Videos
+
+Display actual video content when supported. Do not represent ordinary news articles as videos.
+
+## 17.4 Read More
+
+Open the existing article detail page or a valid source URL. Never invent a URL.
+
+## 17.5 More News
+
+Below the carousel, add a full-width outlined teal button:
+
+**More News**
+
+Navigate to the existing News page.
+
+## 17.6 Avoid duplicate implementations
+
+Before coding, inspect the News page, article models, media categories, services, and routes.
+
+The New Cars page should display a small preview, not a second news database, news engine, or complete News page.
+
+Both pages should reuse the same underlying data and article destinations wherever possible.
+
+---
+
+# 18. SHARED BOTTOM NAVIGATION
+
+Keep the existing five-item bottom navigation:
+
+1. New.
+2. Used.
+3. Compare.
+4. News.
+5. Alerts.
+
+Use:
+
+- White background.
+- Subtle upper border or shadow.
+- Consistent outline icons.
+- Teal selected state for New when this page is active.
+- Pale teal selected-icon background where appropriate.
+- Safe-area handling.
+
+Reuse the existing shared navigation component. Do not add a second bottom navigation bar inside the New Cars page.
+
+---
+
+# 19. PAGE SCROLLING AND RESPONSIVENESS
+
+The entire New Cars page must be one continuous vertical scrollable layout.
+
+Requirements:
+
+- Header and search remain pinned.
+- Main sections scroll vertically.
+- Car cards scroll horizontally.
+- Brand grid adapts to available width.
+- Filter chips scroll horizontally.
+- Comparison cards scroll horizontally.
+- News and media cards scroll horizontally.
+- Bottom navigation remains visible.
+- No content is hidden behind pinned controls.
+- No unbounded height or nested scrolling errors.
+- No overflow on narrow Android devices.
+
+Use the existing scrolling architecture if it is correct. Otherwise, update it to a suitable Flutter structure without unnecessarily rewriting unrelated widgets.
+
+---
+
+# 20. DATA AND LOCALIZATION
+
+Use Ethiopian-market vehicle content.
+
+Requirements:
+
+- Prices use ETB where known.
+- No Indian rupee prices or lakh notation.
+- No Indian location references.
+- No fabricated live news or inventory.
+- No unverified prices presented as facts.
+- No invented article URLs.
+- No invented taxes or dealer fees.
+
+Reuse existing models and assets. Clearly identify sample data.
+
+If a backend, live news source, browsing history, personalized recommendations, or price-breakdown service is missing, document that limitation rather than pretending the feature is connected.
+
+---
+
+# 21. EXISTING CODE REVIEW AND SAFE MODIFICATION
+
+I have already written some code for the New Cars main page.
+
+Do not assume that the code is wrong. Inspect it first.
+
+For each component:
+
+- **Correct and useful:** Keep it.
+- **Mostly correct:** Update only what is needed.
+- **Broken:** Repair it.
+- **Incomplete:** Extend it.
+- **Duplicated:** Keep the best existing implementation and remove redundant copies only when safe.
+- **Unused:** Remove only after confirming that it is unnecessary.
+- **Unclear:** Investigate before changing or deleting it.
+
+Before each implementation task:
+
+1. Inspect relevant files and dependencies.
+2. Identify what should be preserved, fixed, updated, or removed.
+3. Report the intended file changes.
+4. Make focused changes.
+5. Verify the result.
+
+Do not delete whole files, replace the entire home page, or remove dependencies without verifying the consequences.
+
+Preserve all unrelated functionality, particularly Used Cars, Compare, News, and Alerts.
+
+---
+
+# 22. INCREMENTAL IMPLEMENTATION PLAN
+
+Implement and verify the page in this order:
+
+1. Header, search, and quick filters.
+2. Promotional banner and Recently Viewed Cars.
+3. Continue Your Journey.
+4. Recommended For You.
+5. Featured Cars.
+6. Explore by Brand.
+7. Explore By Popular Filters.
+8. Filtered car list and disclaimer.
+9. Compare Cars preview and More Comparisons.
+10. Latest Car Updates, article previews, More News, and final integration.
+
+Do not attempt to implement all ten stages in one operation. Complete each stage and review it before continuing.
+
+---
+
+# 23. TESTING AND ACCEPTANCE CHECKLIST
+
+## Layout
+
+- Header and search are correctly aligned.
+- Quick filters appear in the right order.
+- Promotional banner has correct proportions.
+- Recently Viewed Cars and Continue Your Journey appear in the correct order.
+- Recommended For You contains multiple rows.
+- Featured Cars has Popular, Just Launched, and Upcoming tabs.
+- Featured cards include View Price Breakdown.
+- Explore by Brand includes the grid and View All Brands.
+- Popular Filters includes Body Type, Budget, and Fuel Type.
+- Filtered car list and View All action are present.
+- Price disclaimers appear in the appropriate locations.
+- Compare Cars and More Comparisons are present.
+- Latest Car Updates has three tabs.
+- News/media cards and More News are present.
+
+## Functionality
+
+- Search uses existing logic.
+- Filters update content when supported.
+- Car cards use existing details routes.
+- Brand selection uses existing catalog navigation.
+- Comparison previews open the existing Compare flow.
+- News previews use existing article and media data.
+- Read More opens a valid destination.
+- More News opens the existing News page.
+- Bottom navigation remains functional.
+- No duplicate comparison engine or news feed is introduced.
+
+## Quality
+
+- Ethiopian-market content and ETB pricing are used where available.
+- Sample data and missing integrations are clearly documented.
+- Existing correct code has been preserved.
+- Unnecessary code has been removed only after verification.
+- No new overflow or runtime errors have been introduced.
+- Flutter analysis has been run.
+- Relevant tests have been run.
+- Pre-existing errors are distinguished from new errors.
+
+---
+
+# 24. DEFINITION OF DONE
+
+The New Cars home page is ready when every required section is implemented in the specified order, the layout and scrolling have been checked on an Android device or emulator, existing navigation and shared functionality work correctly, and all remaining limitations are documented.
+
+The implementation report must list:
+
+- Files inspected.
+- Files modified or created.
+- Code preserved.
+- Bugs fixed.
+- Redundant code removed and why.
+- Analysis and test results.
+- Missing integrations and remaining issues.
+
+Do not claim completion until the implementation and verification have actually been performed.
+
+This is the consolidated master specification. Use it as the source of truth for your New Cars agent, then implement it one stage at a time in OpenCode.

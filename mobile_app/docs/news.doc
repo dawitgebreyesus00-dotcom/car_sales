@@ -1,0 +1,870 @@
+# NEWS FEATURE — COMPLETE IMPLEMENTATION DOCUMENTATION
+
+**Project:** `car_sales`\
+**Flutter package:** `car_sales_app` (folder `mobile_app`)\
+**Feature root:** `lib/features/bottom/news/`\
+**Framework:** Flutter and Dart (SDK `^3.12.2`, Flutter 3.44.8)\
+**Platform:** Android\
+**Market:** Ethiopia\
+**Scope:** The News tab (News & Reviews + Images & Videos sub-tabs), article search, article detail screen, video player screen, image gallery, and favourites integration\
+**Purpose:** Act as the single source of truth for the News feature. Inspect, repair, extend and verify the existing implementation without rebuilding working code.
+
+---
+
+# 1. PROJECT OBJECTIVE
+
+The News feature provides a complete content feed for automotive news, expert reviews, videos, and image galleries. It must deliver:
+
+1. A tabbed main page with "News & Reviews" and "Images & Videos" sections.
+2. Horizontal filter pills (All / Reviews / Special Reports) to filter articles.
+3. Horizontally scrollable article cards with category badges, favourite buttons, and tap-to-open.
+4. A horizontally scrollable video carousel with play overlay and view/like counts.
+5. Image collections (vehicle photo sets) with 360° view indicators.
+6. Article and video detail screens with full body text, author info, and share/bookmark actions.
+7. Search across all content (articles, videos, collections).
+8. Favourites integration via a shared `FavoritesStore`.
+
+## 1.1 Core rules
+
+1. Inspect the existing project before editing anything.
+2. Preserve correct and useful code. The article card, video card, and collection card widgets are well designed and should be kept.
+3. Repair broken code.
+4. Update incomplete components.
+5. Remove genuinely redundant code only after verifying it is safe to remove.
+6. Reuse existing models, assets, navigation, state management and services.
+7. Never duplicate the `NewsArticle` or `NewsVideo` models, or the `MockNewsRepository`.
+8. Preserve New Cars, Used Cars, Compare and Alerts functionality.
+9. Use Ethiopian-market content and ETB pricing.
+10. Do not claim an integration works unless it has been verified on a device or emulator.
+11. The News feature is frontend-only. All data lives in `MockNewsRepository`; when a backend arrives, only the `fetch*` methods need swapping — the UI does not change (see the repo comment in `mock_news_repository.dart`).
+
+# 2. FEATURE SCOPE AND NON-GOALS
+
+## 2.1 In scope
+
+- `NewsScreen` (tab page, lib/features/bottom/news/news.dart).
+- Main tabs: "News & Reviews" and "Images & Videos".
+- Sub-tabs within each: 'All / Reviews / Special Reports' for articles; 'Images' and 'Videos' for media.
+- Filter pills: All / Reviews / Special Reports.
+- Article cards (`_ArticleCard`) with cover image, category badge, title, author, time ago, view count, and favourite toggle.
+- Video cards (`_VideoCard`) with 16:9 thumbnail, play button, category badge, title, author, time ago, view count, like count.
+- Collection cards (`_CollectionCard`) with cover image, 360° badge, image count badge, and vehicle name.
+- Article detail screen (`ArticleDetailScreen`).
+- Video detail screen (`VideoDetailsScreen`).
+- Image gallery screen (`ImageGalleryScreen`).
+- News search screen (`NewsSearchScreen`).
+- Favourite integration via `FavoritesStore.instance`.
+- `categoryColorOf()` mapping and `NewsArticle.searchMatches()`.
+- `MockNewsRepository` with `fetchArticles()`, `fetchVideos()`, `fetchCollections()`.
+
+## 2.2 Out of scope (do not build in this feature)
+
+- A real backend or API. All data lives in `MockNewsRepository`; the comment in that file explicitly says "frontend only".
+- A persisted favourites store across app restarts. `FavoritesStore` is in-memory only (documented in section 22).
+- Live video playback. The video screen shows metadata only; actual video URLs are not part of the model.
+- Push notifications. Alerts notifications are a separate feature (see `docs/alert.doc`).
+- A second news database or duplicate content models.
+- Indian rupee prices or lakh notation. All prices in the mock data are in ETB.
+- Auto-playing videos. Video thumbnails are static images.
+
+# 3. FILE MAP AND RESPONSIBILITIES
+
+| File | Responsibility |
+| ---- | -------------- |
+| `lib/features/bottom/news/news.dart` | `NewsScreen` — tab page, main tabs, sub-tabs, filter pills, data loading, skeleton state, article/video/collection lists |
+| `lib/features/bottom/news/article_detail_screen.dart` | `ArticleDetailScreen` — full article body, author, images, share, favourite |
+| `lib/features/bottom/news/video_details_screen.dart` | `VideoDetailsScreen` — video metadata, description, author, likes |
+| `lib/features/bottom/news/image_gallery_screen.dart` | `ImageGalleryScreen` — full-screen image grid from a collection |
+| `lib/features/bottom/news/widgets/news_empty_state.dart` | `NewsEmptyState` — centre-screen illustration + text shown when no items |
+| `lib/features/bottom/news/widgets/news_skeleton_cards.dart` | `NewsSkeletonCards` — loading placeholders for articles, videos, collections |
+| `lib/features/bottom/news/models/news_article.dart` | `NewsArticle` model + `newsCategories` list + `categoryColorOf()` + `searchMatches()` |
+| `lib/features/bottom/news/models/news_video.dart` | `NewsVideo` model |
+| `lib/features/bottom/news/models/vehicle_image_collection.dart` | `VehicleImageCollection` model + `searchMatches()` |
+| `lib/features/bottom/news/data/mock_news_repository.dart` | `MockNewsRepository` — static mock data + `fetchArticles/fetchVideos/fetchCollections` + search helpers |
+| `lib/features/bottom/news/news_search_screen.dart` | `NewsSearchScreen` — keyword search across all content |
+| `lib/shared/widgets/page_top_bar.dart` | `PageTopBar` — top bar with title + trailing actions (reused by News and Alerts) |
+| `lib/navigation/app_routes.dart` | Maps `AppRoutes.news` (`/news`) to `NewsScreen` |
+| `lib/navigation/app_routes.dart` | Route name constant |
+| `lib/navigation/bottom_nav_bar.dart` | Five-item bottom navigation, "News" at index 3; uses `AppIcons.news` |
+| `lib/core/constants/app_colors.dart` | `AppColors.primary`, `AppColors.teal`, etc. — colour tokens used throughout |
+| `lib/core/constants/app_dimens.dart` | `AppDimens` — spacing and radius tokens used throughout |
+| `lib/core/constants/app_icons.dart` | `AppIcons` — Lucide icons; used for news, favourite, search, notification |
+| `lib/features/bottom/news/data/favorites_store.dart` | `FavoritesStore` — in-memory favourite tracking (session-scoped) |
+
+## 3.1 Shared code rules
+
+- `PageTopBar`, `NewsSkeletonCards`, `NewsEmptyState` are shared widgets. Do not copy them.
+- `AppIcons.news`, `AppIcons.favorite`, `AppIcons.favoriteBorder`, `AppIcons.search`, `AppIcons.notification` are the only icon needs.
+- `MockNewsRepository` is the single data source. Do not create a second repository.
+- `FavoritesStore.instance` is the single favourite tracker. Both `ArticleDetailScreen` and `_ArticleCard` use it.
+- All colour tokens come from `AppColors`. Do not hardcode hex values.
+- All dimension tokens come from `AppDimens`. Do not use raw numbers.
+
+# 4. SCREEN FLOW AND NAVIGATION MAP
+
+```
+Bottom navigation (index 3, "News")
+        |
+        v
+NewsScreen  (lib/features/bottom/news/news.dart)
+  |
+  |--- main tabs: "News & Reviews" (default) / "Images & Videos"
+  |    |
+  |    |--- "News & Reviews" ----------> _buildNewsList()
+  |    |    |--- filter pills: All / Reviews / Special Reports
+  |    |    |--- list of _ArticleCard widgets (paginated via ListenableBuilder + FavoritesStore)
+  |    |    |--- empty state: NewsEmptyState()
+  |    |    |--- loading: NewsSkeletonCards()
+  |    |
+  |    |--- tap article -------------> ArticleDetailScreen(article)
+  |    |    |--- header: article title + author
+  |    |    |--- body: article.body paragraphs
+  |    |    |--- bottom: share button + favourite toggle
+  |    |    |--- favourite toggles FavoritesStore.instance
+  |    |
+  |    |--- sub-tab "Images & Videos" ---> _buildMediaList()
+  |         |--- sub-tabs: "Images" / "Videos"
+  |         |--- if "Images": list of _CollectionCard -> ImageGalleryScreen(collection)
+  |         |--- if "Videos": list of _VideoCard -> VideoDetailsScreen(video)
+  |
+  |--- tap favourites icon ---------> FavoritesStore.toggle(id) + SnackBar
+  |--- tap search icon -------------> NewsSearchScreen (pushes named route)
+```
+
+Rules:
+
+- Tab switching must not push routes. The `NewsScreen` rebuilds its body when the main or sub-tab changes.
+- Sub-screens are pushed with `MaterialPageRoute` and popped with `Navigator.pop`.
+- `ArticleDetailScreen` and `VideoDetailsScreen` each receive a model object; they never navigate back with arguments.
+- Favourite state lives in `FavoritesStore.instance`; toggling it shows a 1-second snackbar ("Saved to favourites" / "Removed from favourites").
+- The search screen returns to `NewsScreen` when the user pops it.
+
+# 5. COMPLETE PAGE STRUCTURE
+
+The News tab is a single vertical scroll (ListView inside a ColoredBox) with these blocks in this exact order:
+
+1. Header (`_buildHeader()`) — `PageTopBar` with title "News", trailing search icon and favourites icon.
+2. Main tab selector: horizontal underline tabs "News & Reviews" / "Images & Videos".
+3. If "News & Reviews":
+   a. Filter pills row: All / Reviews / Special Reports.
+   b. Article list (ListView.builder) with `_ArticleCard` widgets.
+   c. Empty state if no articles match the current filter.
+   d. Skeleton cards while data loads.
+4. If "Images & Videos":
+   a. Sub-tab selector: "Images" / "Videos".
+   b. If "Images": collection list (`_CollectionCard`) → `ImageGalleryScreen`.
+   c. If "Videos": video list (`_VideoCard`) → `VideoDetailsScreen`.
+   d. Empty state if no collections/videos.
+   e. Skeleton cards while data loads.
+
+Do not split these blocks into separate screens. The page is one scrollable surface inside the bottom tab.
+
+# 6. GLOBAL VISUAL DESIGN
+
+## 6.1 Colors
+
+Use the existing theme constants from `lib/core/constants/app_colors.dart`. Do not hardcode new hex values in the feature.
+
+| Token | Value | Usage in News |
+| ----- | ----- | ------------- |
+| `AppColors.background` | `#FFFFFF` | Scaffold/colour background |
+| `AppColors.surface` | `#FAFAFA` | Card fills, pill backgrounds |
+| `AppColors.divider` | `#E0E0E0` | 1px borders around cards, skeletons |
+| `AppColors.textPrimary` | `#1A1A2E` | Article titles, car names |
+| `AppColors.textSecondary` | `#6B6B6B` | Metadata (author, time), labels |
+| `AppColors.textDisabled` | `#BDBDBD` | Empty placeholder icons |
+| `AppColors.teal` | `#0F8F83` | Primary accent: filter pill selected, price text |
+| `AppColors.primary` | `#1B5E20` | Brand accent: used for selected filter pill text and underline |
+| `Color(0xFFFFFFFF)` | white | Used in pill backgrounds, favourite icon |
+| `Color(0xFFF0F1F4)` | pale gray | Read notification background (Alerts, reused here) |
+| `Color(0xFFE9F1FB)` | pale blue | Empty state illustration background |
+| `Color(0xFF5E35B1)` | deep purple | Category colour: "Features" |
+| `Color(0xFF6D4C41)` | brown | Category colour: "Used Cars" |
+| `Color(0xFFF57F17)` | orange | Category colour: "Car Prices" |
+| `Color(0xFF546E7A)` | mid gray | Category colour: "Maintenance" |
+| `Color(0xFF7B1FA2)` | purple | Category colour: "Buying Guide" |
+| `Color(0xFF8D6E63)` | rose | Category colour: "General" (Alerts) |
+| `Color(0xFFD97706)` | amber | Warning / secondary accent |
+
+## 6.2 Typography
+
+All text uses `Theme.of(context).textTheme` with `FontWeight.w400` unless a heavier weight is explicitly needed.
+
+| Element | Text style | Notes |
+| ------- | ---------- | ----- |
+| Top bar title | `titleMedium` | "News" |
+| Main tab labels | `labelLarge`, size 13, weight `w400` | Selected: `AppColors.primary`, unselected: `AppColors.textSecondary` |
+| Filter pill labels | `labelMedium`, weight `w400` | Selected text: white, background: `AppColors.primary` / surface border |
+| Article category badge | `labelSmall`, letterSpacing 1.1, size 11 | Coloured per `categoryColorOf()` |
+| Article title | `titleMedium`, weight w400, height 1.3 | Max 3 lines, ellipsis |
+| Article author | `bodySmall`, weight w400, colour textSecondary | "By <name>" |
+| Article time ago | `bodySmall`, colour textSecondary | "X ago" |
+| Article views | `bodySmall`, colour textSecondary | "<n> views" |
+| Video title | `titleMedium`, weight w400, height 1.3 | Max 2 lines, ellipsis |
+| Video author | `bodySmall`, colour textSecondary | "By <name>" |
+| Video time ago | `bodySmall`, colour textSecondary | "X ago" |
+| Video views | `bodySmall`, colour textSecondary | "<n> views" |
+| Video likes | `bodySmall`, colour textSecondary | "<n> likes" |
+| Video duration | `bodySmall`, colour white | "8:12" |
+| Category filter pill selected | `labelMedium`, colour white, background `AppColors.primary` | |
+| Category filter pill unselected | `labelMedium`, colour `AppColors.textSecondary`, background `AppColors.surface` | |
+| Empty state title | `titleLarge`, weight w400, colour textPrimary | "All Caught Up" |
+| Empty state subtitle | `bodyMedium`, colour textSecondary | "You have seen all notifications" |
+
+## 6.3 Spacing and radii
+
+Use `AppDimens` only.
+
+- Spacing: `xs 4`, `sm 8`, `md 12`, `lg 16`, `xl 24`, `xxl 32`.
+- Radii: `radiusSm 8`, `radiusMd 12`, `radiusLg 20`.
+- Page list padding: `EdgeInsets.only(top: AppDimens.md)` for article list.
+- Card padding: `EdgeInsets.fromLTRB(AppDimens.lg, AppDimens.sm, AppDimens.lg, AppDimens.sm)` for article/video/collection cards.
+- Header padding: `EdgeInsets.symmetric(horizontal: AppDimens.lg)` inside filter pills and collection cards.
+- Skeleton block height: 96 for articles, 96 for videos, 96 for collections (see `NewsSkeletonCards`).
+- Empty state illustration height: 172 (circular card).
+- Tooltip/containers: width 42, height 42 for header action chips, `radiusMd 12`.
+
+## 6.4 Icons and images
+
+- Icons come from `AppIcons` (`lucide_icons_flutter`). Do not mix raw Material icons into the shared icon set.
+- Car images load from `assets/images/` via `Image.asset` with error fallback to `image_not_supported_outlined`.
+- All article/video/collection images use `BoxFit.cover` and must never be stretched.
+- The catalogue file name convention is `'<Model>.jpg'`, for example `BMW 7 Series.jpg` (same convention as the Compare feature).
+- Colours for category badges come from `categoryColorOf()` (see section 18.1). These are deterministic per category string.
+- Favourite icons: `AppIcons.favorite` (filled, teal/red) when saved, `AppIcons.favoriteBorder` (outline, secondary) when not. Both are 20px.
+
+# 7. TOP BAR AND HEADER ACTIONS
+
+The News tab header uses `PageTopBar`:
+
+```dart
+PageTopBar(
+  title: 'News',
+  trailing: [
+    _HeaderAction(
+      icon: AppIcons.search,
+      tooltip: 'Search',
+      onTap: _openSearch,
+    ),
+    const SizedBox(width: AppDimens.sm),
+    _HeaderAction(
+      icon: AppIcons.favoriteBorder,
+      tooltip: 'Favourites',
+      onTap: () =>
+          Navigator.of(context).pushNamed(AppRoutes.favourites),
+    ),
+  ],
+)
+```
+
+- `PageTopBar` is a shared widget (`lib/shared/widgets/page_top_bar.dart`). It renders a `Container` with surface fill, a 1px divider bottom, and a `Column` with the title and a `Row` of trailing widgets.
+- `_HeaderAction` is a 42x42 rounded square with surface fill, 1px divider border, 21px icon in textSecondary, wrapped in a `Tooltip`. Tapping opens the named route.
+- Search pushes `AppRoutes.newsSearch` (`/news-search` → `NewsSearchScreen`).
+- Favourites pushes the named route `AppRoutes.favourites` (currently a placeholder).
+
+# 8. ARTICLE CARD
+
+`_ArticleCard` is the core browsing widget for the "News & Reviews" section.
+
+## 8.1 Structure
+
+- Full-width container, `radiusLg`, surface fill, 1px `divider` border.
+- `Column` with three child stacks + text column.
+- **Cover image** (AspectRatio 16:9, `BoxFit.cover`, error fallback icon).
+- **Category badge** (top-left): pill with category name, white text on category colour.
+- **Favourite button** (top-right): circle with `AppIcons.favorite` (teal/red) or `AppIcons.favoriteBorder` (secondary). Toggling calls `FavoritesStore.toggle(id)` + snackbar.
+- **Text column** (padding AppDimens.md):
+  - Category in upper case (`category.toUpperCase()`), `labelSmall`, letterSpacing 1.1, category colour.
+  - Title (`title`), `titleMedium`, max 3 lines, ellipsis, height 1.3, primary colour.
+  - Metadata row: "By <author>" + "•" + "<timeAgo>", `bodySmall`, secondary colour.
+  - View count row: `<n> views`, `bodySmall`, secondary colour, with visibility icon.
+
+## 8.2 Interaction
+
+- Whole card is `InkWell`; tapping calls `_openArticle(article)` → `ArticleDetailScreen`.
+- Favourite button toggles `FavoritesStore.instance` and shows a 1-second snackbar.
+- The snackbar content: `saved ? 'Removed from favourites' : 'Saved to favourites'`.
+
+# 9. VIDEO CARD
+
+`_VideoCard` is the browsing widget for the "Videos" sub-tab.
+
+## 9.1 Structure
+
+- Full-width container, `radiusLg`, surface fill, 1px `divider` border.
+- `Column` with video cover + text column.
+- **Cover image** (AspectRatio 16:9, `BoxFit.cover`, error fallback). Overlaid:
+  - Large play button icon (`Icons.play_arrow`, size 38, white, on black38 circle).
+  - Category badge (top-left): same pill style as article.
+  - Duration badge (top-right): small rect with black54 background, white text, e.g., "8:12".
+- **Text column** (padding AppDimens.md):
+  - Category in upper case, `labelSmall`, letterSpacing 1.1, category colour.
+  - Title (`title`), `titleMedium`, max 2 lines, ellipsis, height 1.3, primary colour.
+  - Metadata row: "By <author>" + "•" + "<timeAgo>", `bodySmall`, secondary colour.
+  - Views + likes row: "<n> views  <n> likes", `bodySmall`, secondary colour, with favourite-border icon.
+
+## 9.2 Interaction
+
+- Whole card is `InkWell`; tapping calls `_openVideo(video)` → `VideoDetailsScreen`.
+- No favourite toggle on the video card itself (the detail screen has its own favourite logic).
+
+# 10. COLLECTION CARD
+
+`_CollectionCard` is the browsing widget for the "Images" sub-tab.
+
+## 10.1 Structure
+
+- Full-width container, `radiusLg`, surface fill, 1px `divider` border.
+- `Column` with cover image + name + optional badges.
+- **Cover image** (AspectRatio 16:9, `BoxFit.cover`, error fallback). Overlaid:
+  - If `has360`: 360° badge (black54 pill, white "360° View" text, top-right).
+  - Image count badge (bottom-left): black54 pill, white "<n> images" text.
+- **Name** (bottom, `titleMedium`, primary colour, max 1 line, ellipsis).
+
+## 10.2 Interaction
+
+- Whole card is `InkWell`; tapping calls `_openGallery(collection)` → `ImageGalleryScreen`.
+- No favourite toggle on the collection card.
+
+# 11. IMAGE GALLERY SCREEN
+
+`ImageGalleryScreen(collection:)` — reached from `_CollectionCard`.
+
+- Scaffold with `AppColors.background`.
+- App bar title: collection name, back arrow.
+- Body: `GridView.count` or `PageView` of the collection's `galleryAssets` (the model lists asset file names).
+- Each grid cell: `AspectRatio(16/9, child: Image.asset(...))` with `BoxFit.cover` and error fallback.
+- No vertical scrolling inside the grid; the grid itself is the scrollable area.
+- No favourite or share actions (the collection is a static image set).
+
+# 12. ARTICLE DETAIL SCREEN
+
+`ArticleDetailScreen(article:)` — reached from `_ArticleCard`.
+
+## 12.1 App bar
+
+- Title: article.title (`titleMedium`).
+- Leading: back arrow.
+- Actions: none currently (share button documented as a future P2 item).
+
+## 12.2 Body
+
+- `PageView` or single-scrolling `ListView` with the article body.
+- Header row: article title large + author block.
+- Body paragraphs: `body` is a `List<String>`; each paragraph rendered as `bodyMedium` with line height 1.55, primary colour.
+- At the very bottom: a line showing `priceTag` if present (e.g., "From ETB 3,850,000"), in `labelLarge`, teal.
+- No favourite toggle on this screen (the favourite action was on the card; the screen could add one later as P2).
+
+## 12.3 Interaction
+
+- Scrollable text only.
+- No navigation out of the screen except the back arrow.
+
+# 13. VIDEO DETAILS SCREEN
+
+`VideoDetailsScreen(video:)` — reached from `_VideoCard`.
+
+- Scaffold with `AppColors.background`.
+- App bar title: video.title, back arrow.
+- Body: similar structure to article detail but for video metadata:
+  - Video title large.
+  - Author block.
+  - Description text.
+  - Views + likes row.
+  - Duration badge.
+  - Keywords or tags if needed.
+- No video playback URL; the model only stores metadata (title, author, timeAgo, views, likes, duration, keywords, description).
+
+# 14. NEWS SEARCH SCREEN
+
+`NewsSearchScreen` — pushed from the top-bar search icon.
+
+- Scaffold with `AppColors.background`.
+- App bar: title "Search News", back arrow.
+- Body: `TextField` with hint "Search articles, videos, collections".
+- As the user types, filter all three data sets via `MockNewsRepository.searchArticles`, `searchVideos`, `searchCollections`.
+- Results displayed as a list (or Wrap of chips) of matching items from all three categories.
+- Tapping a result navigates to the appropriate detail screen (ArticleDetailScreen / VideoDetailsScreen) or opens the gallery.
+
+# 15. FAVOURITES STORE
+
+`FavoritesStore.instance` — in-memory session-scoped favourite tracker.
+
+```dart
+class FavoritesStore extends ChangeNotifier {
+  static final FavoritesStore instance = FavoritesStore._();
+  final Set<String> _faved = {};
+  bool get isFavorite(String id) => _faved.contains(id);
+  void toggle(String id) {
+    if (!_faved.remove(id)) _faved.add(id);
+    notifyListeners();
+  }
+}
+```
+
+Rules:
+
+- Toggling a favourite shows a 1-second snackbar ("Saved to favourites" / "Removed from favourites").
+- The store is session-scoped: favourites are lost when the app restarts. This is a documented limitation (see section 22).
+- Both `_ArticleCard` and `ArticleDetailScreen` use `FavoritesStore.instance.isFavorite(article.id)` to decide which icon to show.
+- The `NewsScreen` rebuilds when `FavoritesStore.instance` changes (via `ListenableBuilder`).
+
+# 15. DATA LAYER
+
+## 14.1 The `NewsArticle` model
+
+```dart
+class NewsArticle {
+  const NewsArticle({
+    required this.id,
+    required this.category,
+    required this.title,
+    required this.imageAsset,
+    required this.author,
+    required this.timeAgo,
+    required this.views,
+    required this.body,
+    this.publishedDate = '',
+    this.priceTag,
+    this.keywords = const [],
+  });
+
+  final String id;
+  final String category;
+  final String title;
+  final String imageAsset;
+  final String author;
+  final String timeAgo;
+  final int views;
+  final List<String> body; // paragraphs
+  final String publishedDate;
+  final String? priceTag;
+  final List<String> keywords;
+
+  Color get categoryColor => categoryColorOf(category);
+
+  bool searchMatches(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return false;
+    return title.toLowerCase().contains(q) ||
+        category.toLowerCase().contains(q) ||
+        keywords.any((k) => k.toLowerCase().contains(q));
+  }
+}
+```
+
+## 14.2 The `NewsVideo` model
+
+```dart
+class NewsVideo {
+  const NewsVideo({
+    required this.id,
+    required this.title,
+    required this.imageAsset,
+    required this.category,
+    required this.author,
+    required this.timeAgo,
+    required this.views,
+    required this.likes,
+    required this.duration,
+    required this.keywords,
+    required this.description,
+  });
+
+  final String id;
+  final String title;
+  final String imageAsset;
+  final String category;
+  final String author;
+  final String timeAgo;
+  final int views;
+  final int likes;
+  final String duration; // e.g. "8:12"
+  final List<String> keywords;
+  final String description;
+}
+```
+
+## 14.3 The `VehicleImageCollection` model
+
+```dart
+class VehicleImageCollection {
+  const VehicleImageCollection({
+    required this.id,
+    required this.name,
+    required this.coverAsset,
+    required this.has360,
+    required this.keywords,
+    required this.galleryAssets,
+  });
+
+  final String id;
+  final String name;
+  final String coverAsset;
+  final bool has360;
+  final List<String> keywords;
+  final List<String> galleryAssets; // asset file names
+}
+```
+
+## 14.4 `MockNewsRepository`
+
+- `fetchArticles()` → returns the static `articles` list after a 500ms delay.
+- `fetchVideos()` → returns the static `videos` list after a 500ms delay.
+- `fetchCollections()` → returns the static `collections` list after a 500ms delay.
+- Search helpers: `searchArticles(query)`, `searchVideos(query)`, `searchCollections(query)`.
+- The delay is intentional: it exercises the loading states (skeleton cards). Do not remove it without also removing the skeleton UI.
+
+## 14.5 Category colours
+
+`categoryColorOf(category)` maps each of the 11 supported categories to a deterministic colour:
+
+| Category | Colour |
+| -------- | ------ |
+| News | `AppColors.primary` (#1B5E20) |
+| Reviews | `AppColors.accent` |
+| Road Test | `AppColors.teal` (#0F8F83) |
+| Features | `Color(0xFF5E35B1)` |
+| Special Reports | `AppColors.red` |
+| EV News | `AppColors.success` |
+| New Cars | `AppColors.primaryLight` |
+| Used Cars | `Color(0xFF6D4C41)` |
+| Car Prices | `Color(0xFFF57F17)` |
+| Maintenance | `Color(0xFF546E7A)` |
+| Buying Guide | `Color(0xFF7B1FA2)` |
+
+These colours are used for the category badge background and text. If a new category is added, extend the switch statement.
+
+# 15. STATE MANAGEMENT AND CACHING
+
+- No third-party state package. The feature uses `StatefulWidget` local state (`NewsScreen`) plus `ChangeNotifier` for `FavoritesStore`.
+- `NewsScreen` holds `_mainTab`, `_mediaSubTab`, `_filter`, `_loading`, `_articles`, `_videos`, `_collections`.
+- Data loading is triggered in `initState()` via `_loadData()`, which fetches all three futures in parallel.
+- The 500ms simulated delay in `MockNewsRepository` means the UI always shows `NewsSkeletonCards()` initially.
+- After data loads, `_loading = false` and the appropriate list is shown.
+- `FavoritesStore.instance` is the only shared state; it is a `ChangeNotifier` so `ListenableBuilder` can react.
+- Tab switches cause `setState` only, no widget rebuilding beyond the body column.
+
+# 16. ROUTES AND NAVIGATION
+
+| Route constant | Path | Target |
+| --------------- | ---- | ------ |
+| `AppRoutes.news` | `/news` | `NewsScreen` (registered in `AppRouter.routes()`) |
+| `AppRoutes.newsSearch` | `/news-search` | `NewsSearchScreen` |
+| `AppRoutes.favourites` | `/favourites` | `PlaceholderScreen` (stub, not yet a real feature) |
+
+- Bottom navigation order: New, Used, Compare, News, Alerts. News is index 3 and uses `AppIcons.news` (`LucideIcons.newspaper`).
+- The selected bottom navigation item is `AppColors.primary` (`#1B5E20`); unselected items are `Colors.grey[700]`.
+- Sub-tab switching inside NewsScreen does not push routes; the body rebuilds.
+
+# 17. LOADING, EMPTY AND ERROR STATES
+
+Every asynchronous block in this feature has all three states.
+
+| Location | Loading | Error | Empty |
+| -------- | ------- | ----- | ----- |
+| Article list | `NewsSkeletonCards()` (3 vertical skeleton cards) | `_InlineNotice`-style notice not yet implemented | `NewsEmptyState()` — centre illustration + "No articles available" |
+| Video list | `NewsSkeletonCards()` | Same as above | `NewsEmptyState()` |
+| Collection list | `NewsSkeletonCards()` | Same as above | `NewsEmptyState()` |
+| All screens during initial load | `NewsSkeletonCards()` covers the whole column | n/a | n/a |
+
+Rules:
+
+- `NewsSkeletonCards()` is a static widget that shows three vertical skeleton blocks (height 96 each). It never animates, which keeps widget tests deterministic.
+- The error state for article/video/collection lists is not yet implemented (a P2 item). For now, the empty state is shown when the filtered list is empty.
+- `NewsEmptyState()` shows an automotive-themed illustration (bell + small car) with "All Caught Up" / "You have seen all notifications" text. The illustration is 172px circular card with `Color(0xFFE9F1FB)` fill.
+
+# 18. KNOWN ISSUES AND DEFECTS
+
+`flutter analyze` currently reports errors across the project. **News-specific issues** (verified against the code):
+
+## 18.1 P0 — the feature does not compile
+
+| ID | File | Problem | Required fix |
+| -- | ---- | ------- | ------------ |
+| P0-1 | `lib/core/constants/app_icons.dart` | `AppIcons.favorite`, `AppIcons.favoriteBorder`, `AppIcons.news`, `AppIcons.notification` are used but some may not exist as `static const IconData` | Verify the icon constants against `lucide_icons_flutter` 4.0.1; add missing ones using valid Lucide names (e.g., `bookmark` → `bookBookmark` or add the missing getter) |
+| P0-2 | `lib/features/bottom/news/news.dart` (line 516) | `AppIcons.favorite` / `AppIcons.favoriteBorder` used inside `const` context but fields are not `const` | Change `AppIcons` fields from `static IconData` to `static const IconData` (see P0-4 below) |
+| P0-3 | `lib/features/bottom/news/news.dart` | The `_HeaderAction` and `_UnderlineTab` widgets are not `const` where they could be, causing unnecessary rebuilds | Not a blocker, but clean up for performance |
+| P0-4 | `lib/core/constants/app_icons.dart` | Icon fields are `static IconData` instead of `static const IconData`, causing every `const Icon(AppIcons....)` to fail with `const_with_non_constant_argument` | Change all icon fields to `static const IconData` (one fix fixes all features) |
+
+## 18.2 P1 — correctness and data integrity
+
+| ID | Location | Problem | Required fix |
+| -- | -------- | ------- | ------------ |
+| P1-1 | `news.dart`, `_buildNewsList()` | `ListenableBuilder(listenable: FavoritesStore.instance, ...)` causes the entire article list to rebuild whenever *any* favourite toggles, even articles not in view | Extract the favourite-check into the `_ArticleCard` only (it already does this); remove the `ListenableBuilder` wrapper from the list level — this was a redundant pattern |
+| P1-2 | `mock_news_repository.dart` | The `articles` list has 24 entries but the `videos` list has only 5, and `collections` has 5. The UI assumes at least one item in each list but the empty states are not consistently wired | Ensure `NewsEmptyState()` is shown when `_filteredArticles.isEmpty`, `_videos.isEmpty`, or `_collections.isEmpty` |
+| P1-3 | `news_search_screen.dart` | Search results navigate to the correct detail screens but do not pass the query; the search screen always opens the first article | Pass the search query or the selected article/video/collection through the navigator, so the detail screen can pre-filter or highlight matches |
+| P1-4 | `news.dart` | The `_UnderlineTab` selected colour uses `AppColors.primary` but the colour token is `#1B5E20` (dark green). The visual contrast against the white surface may be low on some devices. Consider using `AppColors.teal` (`#0F8F83`) for better contrast, or document the intent | |
+| P1-5 | `news.dart` | The filter pill selected text uses `Colors.white` on `AppColors.primary` (`#1B5E20`). The contrast ratio is adequate per WCAG AA, but the unselected pill uses `AppColors.textSecondary` (`#6B6B6B`) on `AppColors.surface` (`#FAFAFA`), which is fine. No change needed, but document the rationale | |
+
+## 18.3 P2 — cleanup and future work
+
+| ID | Location | Problem | Action |
+| -- | -------- | ------- | ------ |
+| P2-1 | `news.dart`, `_buildNewsList()` | `ListenableBuilder(listenable: FavoritesStore.instance, ...)` around the entire ListView is unnecessary and causes over-rebuilds | Remove the `ListenableBuilder`; the favourite state is already handled inside `_ArticleCard` |
+| P2-2 | `news_search_screen.dart` | Search does not persist the query or highlight matches in the detail screen | Add query passing through the navigator; document as a future enhancement |
+| P2-3 | `mock_news_repository.dart` | No "Load More" pagination; all articles are loaded at once. For a real backend, add cursor-based or offset-based pagination | Document the limitation; the UI does not need to change when the backend arrives |
+| P2-4 | `news.dart` | The "Images & Videos" sub-tabs have no data fetching of their own; both sub-tabs just display the same `_loadData()` results filtered differently | The current `initState` fetches everything once; this is fine for the mock but would need refactoring for a real API with separate endpoints |
+| P2-5 | `news.dart` | The `_UnderlineTab` animateContainer duration is 250ms but the tab change animation in the `PageView` shell may not sync | Ensure the underline animation syncs with the page swipe; consider using the same `PageController` if the shell provides one |
+| P2-6 | `news.dart` | The favourite toggle in `_ArticleCard` shows a snackbar, but the `ListenableBuilder` at the list level also calls `notifyListeners()` via `FavoritesStore.instance`. The snackbar may fire twice if the user taps rapidly | Debounce the snackbar or show it only from the card level (already the case — the list `ListenableBuilder` should be removed per P2-1) |
+| P2-7 | `news_search_screen.dart` | The search screen has no clear button on the text field when typing; users must manually delete text | Add a suffix `IconButton(icon: Icon(Icons.clear), onPressed: _controller.clear)` when the query is not empty |
+| P2-8 | `news.dart` | The category filter pill for "Special Reports" uses the same colour as "Reviews" in some edge cases; verify the colour mapping is correct per the switch statement | The colour mapping is correct; this is a visual-QA item, not a code bug |
+
+## 18.4 Non-News errors that must not be confused with News errors
+
+`new_impl.dart` (56), `compare_catalogue.dart` (7), `select_car.dart` (7), `compare.dart` (5), `used.dart` (4), `search.dart` (3), `bottom_nav_bar.dart` (3), `article_detail_screen.dart` (4), `video_details_screen.dart` (2), `saved_reviews_screen.dart` (2), `compare_details.dart` (2) and many others also fail to compile. Fix them separately and report them separately. The News feature must not be blamed for them, and News work must not silently rewrite them.
+
+# 19. EXISTING CODE REVIEW AND SAFE MODIFICATION
+
+The News feature is largely written and the structure is good. Do not assume the code is wrong — inspect it first.
+
+For each component:
+
+- **Correct and useful:** keep it. The article card, video card, collection card, skeleton cards, empty state, and category colour mapping all follow the intended design.
+- **Mostly correct:** update only what is needed. The filter pills and tab switching are fine.
+- **Broken:** repair it. The missing `AppIcons` constants and the `const` field issue are broken.
+- **Incomplete:** extend it. The `ListenableBuilder` over-rebuild, the search screen lacking query passing, and the error-state wiring are incomplete.
+- **Duplicated:** keep the best implementation and remove the rest once it is safe. `SkeletonBlock` is used in three places already; the `ListenableBuilder` pattern is duplicated.
+- **Unused:** remove only after confirming it is unnecessary.
+- **Unclear:** investigate before changing or deleting it.
+
+Before each implementation task:
+
+1. Inspect the relevant files and dependencies.
+2. Identify what must be preserved, fixed, updated or removed.
+3. Report the intended file changes.
+4. Make focused changes.
+5. Verify with `flutter analyze` and `flutter test`.
+
+Rules:
+
+- Do not delete whole files or rebuild the feature from scratch.
+- Do not create a second news repository or a second data model.
+- Do not add a state-management package, a networking package or a database for this feature without an explicit decision.
+- Keep every unrelated feature working: New Cars, Used Cars, Compare and Alerts.
+- Keep prices in ETB and content relevant to the Ethiopian market.
+- Distinguish pre-existing errors from new errors in the report.
+
+# 20. INCREMENTAL IMPLEMENTATION PLAN
+
+Implement and verify the feature in this order. Do not attempt every stage in one operation.
+
+1. **Stage 1 — make it compile.** Add the missing `AppIcons` constants and make the icon fields `static const IconData`. Fix the `ListenableBuilder` over-rebuild in `_buildNewsList()`. Re-run `flutter analyze` and confirm the News errors are gone.
+2. **Stage 2 — fix the favourite rebuild.** Remove the `ListenableBuilder(listenable: FavoritesStore.instance, ...)` wrapper from `_buildNewsList()` and verify the favourite toggle still works correctly from the card level only.
+3. **Stage 3 — wire the search screen.** Add query passing through the navigator from `NewsSearchScreen` to the destination detail screen, and add a clear button to the text field.
+4. **Stage 4 — harden the empty states.** Ensure `NewsEmptyState()` is shown when the filtered article list, video list, or collection list is empty. Verify the illustration renders correctly.
+5. **Stage 5 — polish the interactions.** Add the clear button to the search text field, fix the pill selected colours if needed, and debounce the favourite snackbar.
+6. **Stage 6 — verify on device.** Run the app on an Android device or emulator and walk through the full flow: tab switching, filter pills, favourite toggling, search, article open, image gallery open.
+7. **Stage 7 — final verification.** Run `flutter analyze` with zero errors in the News feature, run `flutter test`, and check the acceptance checklist.
+
+# 21. TESTING AND ACCEPTANCE CHECKLIST
+
+## Layout
+
+- The tab bar shows "News" with the search and favourites actions.
+- Two main tabs: "News & Reviews" (default) and "Images & Videos".
+- When "News & Reviews" is active, filter pills appear: All / Reviews / Special Reports.
+- Article cards show cover image, category badge (coloured pill), title (3 lines max), author, time ago, view count.
+- Favourite button on each article toggles and shows a snackbar.
+- When "Images & Videos" is active, sub-tabs appear: "Images" / "Videos".
+- Video cards show cover image, play button, category badge, title, author, time ago, views, likes.
+- Collection cards show cover image, 360° badge (if applicable), image count badge, vehicle name.
+- Empty state shows the automotive illustration + "All Caught Up" / "You have seen all notifications".
+- Skeleton cards appear while data loads (3 vertical blocks).
+
+## Functionality
+
+- Tapping an article opens `ArticleDetailScreen` with the full body text.
+- Tapping a video opens `VideoDetailsScreen` with metadata.
+- Tapping a collection opens `ImageGalleryScreen` with the image grid.
+- Favourite toggle on an article saves/removes it and shows the snackbar.
+- Returning from `ArticleDetailScreen` rebuilds the article list with updated favourite icons.
+- Search opens `NewsSearchScreen` with a text field; typing filters articles/videos/collections.
+- Clear button appears on the search text field when typing.
+- Sub-tab switching ("News & Reviews" ↔ "Images & Videos") rebuilds the body correctly.
+- The back arrow on every detail screen returns to `NewsScreen`.
+
+## Data integrity
+
+- Every article title and video title matches the mock data.
+- Category badge colours are deterministic per the `categoryColorOf()` switch statement.
+- View and like counts are positive integers from the mock data.
+- Prices (if shown) are in ETB and match the `priceTag` field.
+- Favourite state is consistent between the card and the detail screen (when the favourite toggle is implemented there).
+
+## Quality
+
+- `flutter analyze` reports no errors in the News feature (after Stage 1 and Stage 2 fixes).
+- `flutter test` passes, including the existing tab navigation tests.
+- The feature works with the shared `MockNewsRepository`, without a second database.
+- No unrelated feature was modified or broken.
+- All remaining limitations (session-only favourites, no error states for empty lists, search query not persisted) are documented in the report.
+
+# 23. FOLDER STRUCTURE RECOMMENDATION
+
+## Recommended Directory Layout for News Feature
+
+```
+lib/features/bottom/news/
+├── news.dart                       # NewsScreen (tab page) - public API
+├── new_impl.dart                   # Internal implementation (primary development file)
+│   ├── widgets/                    # Reusable widgets specific to News
+│   │   ├── _ArticleCard.dart       # Article card with cover, badge, title, author
+│   │   ├── _VideoCard.dart         # Video card with thumbnail, play button
+│   │   ├── _CollectionCard.dart    # Collection card with 360° badge
+│   │   ├── _FilterPills.dart       # Filter pills (All / Reviews / Special Reports)
+│   │   ├── _UnderlineTab.dart      # Underline tab indicator
+│   │   ├── _NewsEmptyState.dart    # Empty state illustration + text
+│   │   ├── _NewsSkeletonCards.dart # Loading skeleton cards
+│   │   ├── _SearchHeaderDelegate.dart # Pinned search header delegate
+│   │   ├── _SearchBar.dart         # Search field widget
+│   │   ├── _ArticleDetailScreen.dart # Article detail screen
+│   │   ├── _VideoDetailsScreen.dart # Video detail screen
+│   │   └── _ImageGalleryScreen.dart # Image gallery screen
+│   ├── models/                     # Domain models (reuse where possible)
+│   │   ├── news_article.dart       # NewsArticle model (shared structure)
+│   │   ├── news_video.dart         # NewsVideo model
+│   │   └── vehicle_image_collection.dart # VehicleImageCollection model
+│   ├── data/                       # Data layer (reuse where possible)
+│   │   ├── mock_news_repository.dart # MockNewsRepository (single data source)
+│   │   └── favorites_store.dart     # FavoritesStore (in-memory tracking)
+│   └── news_cars_page.dart        # The main page widget assembling all sections
+├── services/                       # API/services (if needed - none for mock data)
+│   └── news_service.dart
+└── docs/                           # Local documentation
+    └── news_implementation.md
+
+## Key Reuse Patterns (per news.doc)
+
+### 1. News Article Model
+- **Reuse**: `lib/features/bottom/news/models/news_article.dart`'s `NewsArticle` model
+- **Critical**: Do NOT create a second `NewsArticle` model or second data model
+- **Import**: Import `NewsArticle` from the models file, not from any other feature
+- **Search**: `NewsArticle.searchMatches()` method for keyword search across title, category, keywords
+
+### 2. News Video Model
+- **Reuse**: `lib/features/bottom/news/models/news_video.dart`'s `NewsVideo` model
+- **Critical**: Do NOT create a second `NewsVideo` model
+- **Structure**: Shares same pattern as NewsArticle (id, title, imageAsset, author, timeAgo, views, body)
+
+### 3. Vehicle Image Collection
+- **Reuse**: `lib/features/bottom/news/models/vehicle_image_collection.dart`'s `VehicleImageCollection` model
+- **Search**: `VehicleImageCollection.searchMatches()` method
+- **Critical**: Do NOT create a second collection model
+
+### 4. Mock News Repository (SINGLE DATA SOURCE)
+- **Reuse**: `lib/features/bottom/news/data/mock_news_repository.dart`'s `MockNewsRepository`
+- **CRITICAL**: Do NOT create a second repository or second data source
+- **Methods**: `fetchArticles()`, `fetchVideos()`, `fetchCollections()`, `searchArticles()`, `searchVideos()`, `searchCollections()`
+- **All widgets** must read from `MockNewsRepository` only - no inline data lists
+
+### 5. Favorites Store (SINGLE INSTANCE)
+- **Reuse**: `lib/features/bottom/news/data/favorites_store.dart`'s `FavoritesStore.instance`
+- **CRITICAL**: Do NOT create a second favorites store
+- **Usage**: Both `ArticleDetailScreen` and `_ArticleCard` use `FavoritesStore.instance`
+- **Session-scoped**: Documented limitation per section 22 - lost on app restart
+
+### 6. Shared Widgets (DO NOT duplicate)
+| Widget | Location | Usage |
+|--------|----------|-------|
+| `NewsSkeletonCards` | `lib/features/bottom/news/widgets/news_skeleton_cards.dart` | Loading placeholders for articles, videos, collections |
+| `NewsEmptyState` | `lib/features/bottom/news/widgets/news_empty_state.dart` | Empty state illustration + text |
+| `PageTopBar` | `lib/shared/widgets/page_top_bar.dart` | Top bar with title + trailing actions (shared with Alerts) |
+| `NewsArticle` model | `lib/features/bottom/news/models/news_article.dart` | Article structure + categoryColorOf() + searchMatches() |
+| `NewsVideo` model | `lib/features/bottom/news/models/news_video.dart` | Video structure |
+
+### 7. Bottom Navigation Integration
+- **Reuse**: Existing 5-item bottom nav (New, Used, Compare, **News**, Alerts)
+- **News at index 3**: Teal when selected, `AppIcons.news` (`LucideIcons.newspaper`)
+- **Do NOT**: Add second navigation bar inside News page
+- **Shell ownership**: The navigation shell owns the bottom nav; News tab lives inside PageView
+
+### 8. Color & Theme Integration
+- **Reuse**: Existing `app_colors.dart` palette
+- **Teal**: `#0F8F83` for selected states, filter pills, category badges
+- **Primary**: `#1B5E20` for main color (Ethiopian flag green), section headings
+- **Surface**: `#FAFAFA` for card backgrounds
+- **Divider**: `#E0E0E0` for dividers, skeletons
+- **Text Primary**: `#1A1A2E` for titles, article text
+- **Text Secondary**: `#6B6B6B` for metadata, author, time ago
+- **Pale teal**: `#EAF7F5` for icon backgrounds (filter pills, category badges)
+
+### 9. Category Colour Mapping
+- **Reuse**: `categoryColorOf()` from `news_article.dart`
+- **Deterministic**: Each category gets a consistent colour
+- **Switch statement**: Reviews, Road Test, Features, Special Reports, EV News, New Cars, Used Cars, Car Prices, Maintenance, Buying Guide, News/default
+- **Critical**: Do NOT duplicate the colour mapping - use the shared `categoryColorOf()` function
+
+### 10. Filter Pills
+- **Reuse**: Pill styling and behaviour pattern from news.dart
+- **Options**: All / Reviews / Special Reports
+- **Selected**: Teal text with teal underline, unselected: dark gray
+- **Do NOT**: Create duplicate filter pill implementations
+
+### 11. Sub-tabs (News & Reviews vs Images & Videos)
+- **Reuse**: Tab switching pattern from news.dart
+- **Two main tabs**: "News & Reviews" (default) and "Images & Videos"
+- **Do NOT**: Create separate data fetching for each sub-tab - both display the same data filtered differently
+
+### 12. Error & Empty States
+- **Reuse**: `NewsSkeletonCards()` for loading, `NewsEmptyState()` for empty
+- **Critical**: Ensure `NewsEmptyState()` is shown when filtered lists are empty (P1-2)
+- **Do NOT**: Implement custom error states - use the shared widgets
+
+## Implementation Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Single NewsArticle Model** | Only one `NewsArticle` model from `news_article.dart` - never create a second |
+| **Single NewsVideo Model** | Only one `NewsVideo` model from `news_video.dart` - never create a second |
+| **Single MockRepository** | Only one `MockNewsRepository` - the sole data source; no second repository |
+| **Single FavoritesStore** | Only `FavoritesStore.instance` - no second store |
+| **Heavy Widget Reuse** | `NewsSkeletonCards`, `NewsEmptyState`, `PageTopBar` are shared - do NOT copy |
+| **Incremental Fixes** | Fix P0 issues first (icon constants, const fields) before feature enhancements |
+| **ETB Pricing** | All prices in Ethiopian Birr, no INR/lakh notation (per mock data) |
+| **Category Colours** | Use shared `categoryColorOf()` - do not duplicate the switch statement |
+| **Bottom Nav Single** | 5-item nav only, News at index 3, no second navigation bar |
+
+## Development Workflow
+
+1. **Start with compilation**: Fix P0 issues first (missing AppIcons constants, const field changes)
+2. **Fix data wiring**: Ensure all widgets read from `MockNewsRepository`, not inline data
+3. **Fix favourite rebuild**: Remove `ListenableBuilder` over-rebuild per P1-1
+4. **Wire search screen**: Add query passing through navigator, add clear button
+5. **Harden empty states**: Ensure `NewsEmptyState()` shows for empty article/video/collection lists
+6. **Polish interactions**: Add clear button to search, fix pill colours, debounce snackbar
+7. **Verify on device**: Walk through full flow: tab switching, filter pills, favourite toggling, search
+
+## What NOT to Do
+
+❌ **Do NOT create a second `NewsArticle` model** - import from `news_article.dart` only
+❌ **Do NOT create a second `NewsVideo` model** - import from `news_video.dart` only
+❌ **Do NOT create a second `MockNewsRepository`** - this is the single data source
+❌ **Do NOT create a second favorites store** - use `FavoritesStore.instance` only
+❌ **Do NOT duplicate shared widgets** - `NewsSkeletonCards`, `NewsEmptyState`, `PageTopBar` are shared
+❌ **Do NOT duplicate category colour mapping** - use shared `categoryColorOf()` function
+❌ **Do NOT add a second bottom navigation bar** - the shell owns the bottom nav
+❌ **Do NOT invent data** - all data must come from `MockNewsRepository`
+❌ **Do NOT claim integrations work unless verified** - document limitations (session-only favorites, no error states for real backends)
+
+⚠️ **Critical**: The News feature must not create a second NewsArticle model, second NewsVideo model, second MockNewsRepository, or second FavoritesStore. These are the top defects blocking correct data flow and state management.
+
+This section serves as a guide for the development team to organize code consistently with the project's existing patterns and the `news.doc` specification, emphasizing the single-model and single-repository constraints that are fundamental to this feature's architecture.
+
+# 22. DEFINITION OF DONE
+
+The News feature is ready when it compiles cleanly, the tab switching and filter pills work, article/video/collection cards render correctly, favourite toggling works with snackbar feedback, the search screen navigates correctly, empty states are shown when appropriate, the layout has been checked on an Android device or emulator, and every remaining limitation is documented.
+
+The implementation report must list:
+
+- Files inspected.
+- Files modified or created.
+- Code preserved.
+- Bugs fixed, including the P0 and P1 items from section 18.
+- Redundant code removed and why.
+- `flutter analyze` and `flutter test` results, with pre-existing errors listed separately.
+- Missing integrations and remaining issues.
+
+Do not claim completion until the implementation and verification have actually been performed.
+
+This is the consolidated master specification for the News feature. Use it as the source of truth, then implement it one stage at a time in OpenCode.

@@ -1,0 +1,879 @@
+# COMPARE CARS FEATURE — COMPLETE IMPLEMENTATION DOCUMENTATION
+
+**Project:** `car_sales`\
+**Flutter package:** `car_sales_app` (folder `mobile_app`)\
+**Feature root:** `lib/features/bottom/compare/`\
+**Framework:** Flutter and Dart (SDK `^3.12.2`, Flutter 3.44.8)\
+**Platform:** Android\
+**Market:** Ethiopia\
+**Currency:** ETB\
+**Scope:** The Compare Cars tab, the car picker, the side-by-side comparison screen, and the expert comparison review flow\
+**Purpose:** Act as the single source of truth for the Compare feature. Inspect, repair, extend and verify the existing implementation without rebuilding working code.
+
+---
+
+# 1. PROJECT OBJECTIVE
+
+The Compare feature lets a user place two cars side by side and decide which one suits them, without leaving the app.
+
+It must provide:
+
+1. A fast entry point that lets the user pick exactly two cars.
+2. A detailed, honest side-by-side specification table.
+3. Popular comparisons for inspiration when the user has no idea what to compare.
+4. Expert comparison articles that explain the differences in plain language.
+5. Bookmarks and a shareable text summary of any comparison.
+
+## 1.1 Core rules
+
+1. Inspect the existing project before editing anything.
+2. Preserve correct and useful code.
+3. Repair broken code.
+4. Update incomplete components.
+5. Remove genuinely redundant code only after verifying it is safe to remove.
+6. Reuse existing models, assets, navigation, state management and services.
+7. Never duplicate the `Car` model, the catalogue, or the comparison engine.
+8. Preserve New Cars, Used Cars, News and Alerts functionality.
+9. Use Ethiopian-market content and ETB prices.
+10. Never invent a specification. A missing value renders as `N/A`.
+11. Do not claim an integration works unless it has been verified on a device or emulator.
+
+# 2. FEATURE SCOPE AND NON-GOALS
+
+## 2.1 In scope
+
+- Compare Cars tab page (`CompareScreen`).
+- Car picker (`SelectCarScreen`).
+- Side-by-side detail (`CompareDetailsScreen`).
+- Popular comparisons list.
+- Expert comparison reviews: carousel, full article, all-reviews list, saved reviews.
+- Share-to-clipboard summary.
+- Bookmark (save) behaviour for expert reviews.
+
+## 2.2 Out of scope (do not build in this feature)
+
+- A second vehicle catalogue or database. The Compare feature reads the shared catalogue in `lib/shared/common/filter_results/filter_results.dart`.
+- A second comparison engine. Only one implementation of a comparison exists and it lives here.
+- A live backend, pricing API, or dealer inventory feed. None exists today.
+- A real OS share sheet. The current behaviour is clipboard copy only. Do not add `share_plus` unless the dependency is deliberately approved.
+- Persisted bookmarks. Bookmarks are session-scoped in memory today (see section 19).
+- Loan, EMI, valuation and price-breakdown calculators. They are separate features.
+
+# 3. FILE MAP AND RESPONSIBILITIES
+
+| File | Responsibility |
+| ---- | -------------- |
+| `lib/features/bottom/compare/compare.dart` | `CompareScreen` (tab page), `_CompareBody` (page state), car selector panels, popular comparison cards, review cards, `SkeletonBlock`, `_InlineNotice` |
+| `lib/features/bottom/compare/select_car/select_car.dart` | `SelectCarScreen` — keyword search, brand filter, year filter, result rows, returns a `Car` via `Navigator.pop` |
+| `lib/features/bottom/compare/compare_details/compare_details.dart` | `CompareDetailsScreen` — two car headers, swap, reset, grouped specification rows |
+| `lib/features/bottom/compare/compare_catalogue/compare_catalogue.dart` | `ComparisonReview` model and `CompareCatalogue` data gateway (pairs, reviews, bookmarks, share text) |
+| `lib/features/bottom/compare/compare_catalogue/all_reviews_screen.dart` | `AllReviewsScreen` — full list of expert reviews with paged "Load More Reviews" |
+| `lib/features/bottom/compare/compare_catalogue/expert_review_screen.dart` | `ExpertReviewScreen` — full article, at-a-glance spec table, bookmark, share, jump to full comparison |
+| `lib/features/bottom/compare/compare_catalogue/saved_reviews_screen.dart` | `SavedReviewsScreen` — bookmarked reviews only |
+| `lib/features/bottom/compare/compare_catalogue/review_list_tile.dart` | `ReviewListTile` — compact review row shared by All Reviews and Saved Reviews |
+| `lib/shared/widgets/vs_badge.dart` | `VsBadge` — the teal "VS" circle drawn between two cars |
+| `lib/shared/widgets/tab_page_shell.dart` | `TabPageShell` — top bar + body shell used by every bottom tab |
+| `lib/shared/widgets/app_car_image.dart` | `AppCarImage` — asset image with error fallback |
+| `lib/shared/common/filter_results/filter_results.dart` | `Car` model, `newCars` catalogue, `allCars` catalogue |
+| `lib/navigation/navigation_shell.dart` | Hosts `CompareScreen` as tab index 2 inside a `PageView` |
+| `lib/navigation/app_router.dart` | Maps `AppRoutes.compare` (`/compare`) to `CompareScreen` |
+| `lib/navigation/app_routes.dart` | Route name constants |
+| `lib/navigation/bottom_nav_bar.dart` | Five-item bottom navigation, "Compare" at index 2 |
+
+## 3.1 Shared code rules
+
+- `VsBadge`, `TabPageShell` and `AppCarImage` are shared. Do not copy them into the Compare folder.
+- `CompareCatalogue` is the single data entry point for the feature. Widgets must not build their own lists of cars or reviews.
+- The `Car` model lives in `filter_results.dart`. Import it from there. Do not create `new_cars.dart` (see section 22, P0-2).
+
+# 4. SCREEN FLOW AND NAVIGATION MAP
+
+```
+Bottom navigation (index 2, "Compare")
+        |
+        v
+CompareScreen  (lib/features/bottom/compare/compare.dart)
+  |--- top bar "Search"  ----------------> AppRoutes.searchCars  -> CarSearchScreen
+  |--- top bar "Saved reviews" -----------> SavedReviewsScreen
+  |
+  |--- tap an empty / filled selector ---> SelectCarScreen  --(returns Car)--> back to CompareScreen
+  |--- "+ Add Car" ------------------------> SelectCarScreen (first free slot)
+  |--- "Compare" (both slots filled) -----> CompareDetailsScreen(carA, carB)
+  |--- tap a popular comparison card -----> CompareDetailsScreen(pair.a, pair.b)
+  |--- tap a review card / "Read More" --> ExpertReviewScreen(review)
+  |       |--- "View Full Comparison" ----> CompareDetailsScreen(review.carA, review.carB)
+  |       |--- bookmark -----------------> CompareCatalogue.toggleSaved(review.id)
+  |       |--- share ---------------------> Clipboard
+  |--- "Read all expert reviews" ---------> AllReviewsScreen
+  |           |--- tap a review ----------> ExpertReviewScreen(review)
+```
+
+Rules:
+
+- Tab switching must not push routes. The shell animates the `PageView`.
+- Sub-screens are pushed with `MaterialPageRoute` and popped with `Navigator.pop`.
+- `CompareDetailsScreen` is always reached with two concrete `Car` objects. Never push it with null cars.
+- `SelectCarScreen` returns the selected `Car` through `Navigator.pop(car)`. The caller must handle a null result (user pressed back).
+
+# 5. COMPLETE PAGE STRUCTURE
+
+The Compare tab is a single vertical scroll (`ListView`, `BouncingScrollPhysics`) with these blocks in this exact order:
+
+1. Top bar (`TabPageShell`) — title "Compare Cars", search action, saved reviews action.
+2. Two car selector panels side by side with a centred "VS" badge.
+3. Action row — "+ Add Car" (outlined) and "Compare" (filled teal).
+4. Section heading "POPULAR CAR COMPARISONS".
+5. Popular comparison cards (2 visible initially).
+6. "Less Comparisons" / "More Comparisons" buttons.
+7. Section heading "COMPARISON TESTS".
+8. Horizontally scrollable expert review carousel.
+9. Full-width "Read all expert reviews" outlined button.
+
+Do not split these blocks into separate screens. The page is one scrollable surface inside the tab.
+
+# 6. GLOBAL VISUAL DESIGN
+
+## 6.1 Colors
+
+### Professional Color System for Ethiopian Car Sales Application
+
+This documentation defines a complete color system for a modern, professional Ethiopian car sales application with **Muted Blue** as the primary brand color.
+
+#### Primary Brand Color
+
+| Color | Hex | Purpose |
+|-------|-----|---------|
+| **Muted Blue** | `#647FA3` | Brand identity, selected navigation icons, active states, important highlights |
+| **Dark Muted Blue** | `#526D91` | Primary buttons, important actions |
+| **Light Blue** | `#EAF0F7` | Selected filter chips, subtle highlights |
+| **Deep Navy** | `#34465E` | Headings, important text, strong visual emphasis |
+
+#### Supporting Colors
+
+| Color | Hex | Purpose |
+|-------|-----|---------|
+| **White** | `#FFFFFF` | Scaffold background, card backgrounds |
+| **Cool Gray** | `#F1F4F8` | Secondary surfaces, input backgrounds |
+| **Secondary Text Gray** | `#64748B` | Section headings, metadata, spec labels |
+| **Border Gray** | `#D9E0E8` | Card borders, dividers, input outlines |
+
+#### Color Usage Rules (for Compare Feature)
+
+- Use white (`#FFFFFF`) as the scaffold background
+- Use muted blue (`#647FA3`) for selected states, active chips, accent elements
+- Use darker blue (`#526D91`) for primary actions and filled buttons
+- Use light blue (`#EAF0F7`) for selected filter chips and subtle highlights
+- Use deep navy (`#34465E`) for section headings and important text
+- Use cool gray (`#F1F4F8`) for secondary surfaces and card backgrounds
+- Use border gray (`#D9E0E8`) for dividers, card borders, input outlines
+- Keep comparisons visually distinct without excessive colors
+- Use **green** (`#16A34A`) for successful action states
+- Use **red** (`#DC2626`) for error states or destructive actions
+- Use **orange** (`#F97316`) only for relevant warnings
+
+#### Existing Color Tokens (Preserved - AppColors class)
+
+| Token | Hex | Usage in Compare |
+| ----- | ----- | ---------------- |
+| `AppColors.background` | `#FFFFFF` | Scaffold background |
+| `AppColors.surface` | `#FAFAFA` | Cards, panels, chips (update to cool gray variant) |
+| `AppColors.divider` | `#E0E0E0` | 1px card borders, dividers, skeleton blocks |
+| `AppColors.textPrimary` | `#1A1A2E` | Car names, titles, spec values |
+| `AppColors.textSecondary` | `#6B6B6B` | Section headings, metadata, spec labels |
+| `AppColors.textDisabled` | `#BDBDBD` | Empty/error icon placeholders |
+| `AppColors.teal` | `#0F8F83` | Primary accent: preserved for VS badge, chip selection |
+| `Color(0xFFEAF4F3)` | pale teal | Empty selector icon circle (keep existing) |
+
+#### Color Implementation in Flutter
+
+All colors should reference `AppColors` constants from `lib/core/constants/app_colors.dart`. The Compare feature should use the centralized color system while maintaining its existing visual structure.
+
+**Example Usage:**
+
+```dart
+// Scaffold background
+body: Container(color: AppColors.background), // #FFFFFF
+
+// Card fill
+child: Container(color: AppColors.surface), // #FAFAFA (update to cool gray variant)
+
+// Dividers and borders
+child: Container(decoration: BoxDecoration(border: Border.all(color: AppColors.divider)))
+
+// Text colors
+Text(
+  style: TextStyle(
+    color: AppColors.textPrimary, // #1A1A2E
+  ),
+  text: 'BMW 7 Series vs Mercedes-Benz',
+)
+
+// Spec labels
+Text(
+  style: TextStyle(
+    color: AppColors.textSecondary, // #6B6B6B
+  ),
+  text: 'Price',
+)
+
+// Button styles - using new brand colors
+ElevatedButton(
+  onPressed: () {},
+  style: ElevatedButton.styleFrom(
+    backgroundColor: AppColors.brandPrimaryDark, // #526D91 for primary
+    foregroundColor: Colors.white,
+  ),
+)
+
+// Outlined button with muted blue
+OutlinedButton(
+  onPressed: () {},
+  style: OutlinedButton.styleFrom(
+    side: BorderSide(color: AppColors.brandPrimary), // #647FA3 for muted blue
+    foregroundColor: AppColors.brandPrimary,
+  ),
+)
+
+// Light blue for selected state
+Container(
+  color: AppColors.brandPrimaryLight, // #EAF0F7 for selected filter
+)
+
+# 7. TOP BAR AND HEADER ACTIONS
+
+The Compare page uses `TabPageShell` so it keeps the app-wide header treatment and the bottom navigation supplied by `NavigationShell`.
+
+```dart
+TabPageShell(
+  title: 'Compare Cars',
+  trailing: [
+    _CompareTopAction(icon: AppIcons.search, tooltip: 'Search', onTap: ...),
+    const SizedBox(width: AppDimens.sm),
+    _CompareTopAction(icon: AppIcons.bookmarkBorder, tooltip: 'Saved reviews', onTap: ...),
+  ],
+  child: const _CompareBody(),
+)
+```
+
+- `_CompareTopAction` is a 42x42 rounded square with `AppColors.surface` fill, 1px `AppColors.divider` border, 21px icon in `AppColors.textSecondary`, wrapped in a `Tooltip`.
+- Search pushes the named route `AppRoutes.searchCars` (`/search-cars` -> `CarSearchScreen`).
+- Saved reviews push `SavedReviewsScreen` with `MaterialPageRoute`.
+- `TabPageShell` renders a `Column` (not `Expanded`) so it works inside the shell's `PageView`; the child must be a scrollable widget.
+
+# 8. CAR SELECTOR
+
+Two `_CarSelectorPanel` widgets sit in a `Row` of two `Expanded` children inside a `Stack` with `alignment: Alignment.center`. The `VsBadge` is the centered overlay on the seam.
+
+## 8.1 Empty panel (`_EmptyPanel`)
+
+- Fixed height 280.
+- Pale teal circle, 92x92, radius 46, colour `#EAF4F3`.
+- `Icons.directions_car_filled`, size 46, colour `AppColors.teal`.
+- Label "Select Car" in `titleSmall`, primary colour.
+- Tapping anywhere on the panel opens `SelectCarScreen` for that slot.
+
+## 8.2 Selected panel (`_SelectedPanel`)
+
+- Fixed height 280, `AppColors.surface`, `radiusLg`, 1px divider border, clipped.
+- `AppCarImage(asset: car.image, height: 160)`.
+- Below the image, padded by `AppDimens.md`: car name (`titleSmall`, 1 line, ellipsis), year (`bodySmall`, secondary, `-` when missing), price (`labelLarge`, teal).
+- A circular remove button sits at the top right (6px inset, `AppColors.surface` fill, elevation 1, `Icons.close` size 18). Tapping it clears that slot and rebuilds the page.
+
+## 8.3 Selection rules
+
+- The picker result is assigned to the slot that was tapped.
+- "+ Add Car" fills the first free slot: slot A when A is empty, otherwise slot B.
+- When both slots are filled, "+ Add Car" must not silently fail. Either hide/disable it or replace the current selection (see section 22, P1-3).
+- Slot state lives in `_CompareBodyState` as `Car? _carA` and `Car? _carB`.
+
+# 9. PRIMARY ACTIONS
+
+| Button | Style | Enabled when | Result |
+| ------ | ----- | ------------ | ------ |
+| "+ Add Car" | `OutlinedButton`, teal text, teal border, `radiusMd`, vertical padding 14 | At least one slot free | Opens `SelectCarScreen` |
+| "Compare" | `FilledButton`, teal background, `radiusMd`, vertical padding 14 | Both slots filled | Pushes `CompareDetailsScreen(carA, carB)` |
+
+Both buttons are `Expanded` inside one `Row` separated by `AppDimens.md`, so they always have equal width.
+
+The "Compare" button uses `onPressed: null` when the comparison is not possible. This is the only disabled state; do not hide the button.
+
+# 10. POPULAR CAR COMPARISONS SECTION
+
+## 10.1 Data
+
+`CompareCatalogue.fetchPopularPairs()` returns `List<({Car a, Car b})>`.
+
+The pairs are generated from the shared `newCars` catalogue by combining every distinct car with every later car, so the same combination never appears twice:
+
+```dart
+for (var i = 0; i < newCars.length; i++) {
+  for (var j = i + 1; j < newCars.length; j++) {
+    pairs.add((a: newCars[i], b: newCars[j]));
+  }
+}
+```
+
+With the current four-car catalogue this yields six pairs. The list grows automatically when the catalogue grows, so no hardcoded pair list is allowed.
+
+## 10.2 Card (`_PopularCompareCard`)
+
+- Full-width card, `AppDimens.md` padding, `AppDimens.sm` bottom margin, `radiusLg`, surface fill, 1px divider border.
+- Image row: two `Expanded` `AppCarImage` blocks at height 96 with `radiusMd` and icon size 24, with a centred `VsBadge` on the seam.
+- Name row: two `Expanded` text blocks showing `'<brand> <modelName>'`, `titleSmall`, max 2 lines, ellipsis.
+- Price row: two `Expanded` text blocks showing `priceText`, `labelLarge`, teal, max 1 line, ellipsis.
+- The whole card is one `InkWell` that opens `CompareDetailsScreen(pair.a, pair.b)`.
+
+## 10.3 Paging
+
+- `_initialPairs = 2` cards are shown initially.
+- "More Comparisons" reveals two more cards (`_visiblePairs += 2`).
+- "Less Comparisons" resets back to 2 and is only shown when more than 2 are visible.
+- Both buttons are outlined teal, equal width, separated by `AppDimens.md`.
+
+# 11. COMPARISON TESTS SECTION (expert reviews)
+
+- Heading "COMPARISON TESTS".
+- A horizontal `ListView` with `BouncingScrollPhysics`, fixed height 312.
+- Each `_ReviewCard` is 272 wide with `AppDimens.sm` right padding.
+
+## 11.1 Review card
+
+- Cover: two `AppCarImage` blocks at height 132 with a centred `VsBadge`.
+- Bookmark button at the top right of the cover: `AppIcons.bookmark` when saved (teal), `AppIcons.bookmarkBorder` when not (secondary). Tapping toggles the bookmark and shows a 1-second `SnackBar` ("Review saved to your bookmarks" / "Review removed from bookmarks").
+- Title: `titleSmall`, max 2 lines, ellipsis, line height 1.3.
+- Metadata row: `AppIcons.person` size 14 plus `'<author>  •  <date>'`, `bodySmall`, secondary, 1 line.
+- Summary: `bodySmall`, max 2 lines, ellipsis.
+- "Read More" label in `labelMedium`, teal.
+- Tapping the card opens `ExpertReviewScreen(review)`.
+
+## 11.2 "Read all expert reviews"
+
+A full-width outlined teal button below the carousel that pushes `AllReviewsScreen`.
+
+# 12. SELECT CAR SCREEN
+
+Opened by tapping a selector panel or "+ Add Car". Full-screen `Scaffold` with `AppColors.background`.
+
+## 12.1 App bar search field
+
+- The `AppBar` has no back button and `titleSpacing: 0`; the title itself is the search field container (height 44, surface fill, `radiusMd`, divider border).
+- `TextField` with `autofocus: true`, hint "Search make, model or year", prefix search icon size 22, suffix clear button when the query is not empty.
+- `TextEditingController` is disposed in `dispose()`.
+
+## 12.2 Filters
+
+Two filter rows, both horizontal chip lists of height 36 with `BouncingScrollPhysics`:
+
+1. "Brand" — distinct brands of the catalogue, sorted ascending.
+2. "Year" — distinct years parsed from the car name, sorted descending.
+
+Chips are `ChoiceChip` with `showCheckmark: false`, `radius 26`, surface background, divider border, teal when selected. Tapping the selected chip clears the filter.
+
+## 12.3 Results
+
+- `_results` filters the catalogue by keyword (matches `name` or `brand`, case-insensitive), then by brand, then by year.
+- Each `_CarOptionRow` shows a 64x48 image, `'<brand> <modelName>'`, `'<year> · <fuel> · <transmission>'`, the teal price and a chevron.
+- Tapping a row pops the screen with that `Car`.
+- Empty state text: "No cars match your search", centered with `AppDimens.xxl` top padding.
+
+# 13. COMPARE DETAILS SCREEN
+
+`CompareDetailsScreen(carA:, carB:)` — the core output of the feature.
+
+## 13.1 App bar
+
+- Title "Compare" (`titleMedium`).
+- Leading back arrow that pops the screen.
+- One action: share (`AppIcons.share`, secondary colour) with tooltip "Share comparison".
+
+## 13.2 Header row
+
+Two `_ComparisonHeader` widgets in a `Row` of two `Expanded`, with a `VsBadge(size: 40)` centred on the seam.
+
+Each header shows:
+
+1. Label "Car 1" / "Car 2" (`labelSmall`, letterSpacing 1.1).
+2. Image, height 120, `radiusMd`, `BoxFit.cover`, error fallback icon.
+3. `'<brand> <modelName>'`, 1 line, ellipsis.
+4. Year (`-` when missing).
+5. Teal price.
+
+## 13.3 Actions
+
+- "Swap Cars" — outlined teal with `Icons.swap_horiz`. Swaps the two cars in state, so every row flips.
+- "Reset" — outlined secondary with `Icons.refresh`. Today it simply pops the screen (see section 22, P1-4).
+
+## 13.4 Specification sections
+
+Sections are rendered by `_ComparisonSection` as a surface card with a title row, a 1px divider, then one row per specification: a 110 wide label, then two `Expanded` value columns.
+
+| Section | Rows | Source |
+| ------- | ---- | ------ |
+| Basic Information | Price, Year, Condition, Mileage | `priceText`, `year`, hard-coded "Used", `km` |
+| Engine & Performance | Engine size, Engine type, Power, Torque, Cylinders | `N/A` (not in the model) |
+| Transmission | Transmission, Drive type | `transmission`, `N/A` |
+| Fuel | Fuel type, Fuel economy | `fuel`, `N/A` |
+| Dimensions | Length, Width, Height, Ground clearance, Boot space | `N/A` |
+| Features | Air conditioning, Airbags, ABS, Reverse camera, Parking sensors, Sunroof, Apple CarPlay, Android Auto, Other features | `N/A` |
+
+Rules:
+
+- A missing or blank value renders `N/A`. Never substitute a guess.
+- The label column is fixed at 110 wide; values are `Expanded` so long text wraps.
+- Rows use `crossAxisAlignment: CrossAxisAlignment.start` so wrapped values do not clip.
+
+# 14. EXPERT REVIEW SCREEN
+
+`ExpertReviewScreen(review:)` — the full article behind "Read More".
+
+## 14.1 App bar
+
+- Title "Expert Review".
+- Bookmark action: `AppIcons.bookmark` (teal) when saved, `AppIcons.bookmarkBorder` otherwise; tooltip toggles between "Remove from bookmarks" and "Save review".
+- Share action (`AppIcons.share`), tooltip "Share comparison".
+
+## 14.2 Body
+
+1. Title — `headlineSmall`, primary colour, line height 1.25.
+2. Author block — `CircleAvatar` radius 18, teal at 12% opacity, `AppIcons.person` size 20; author name `labelLarge`, date `bodySmall`.
+3. Cover — two `AppCarImage` blocks at height 190 with a centred `VsBadge`, clipped with `radiusLg`.
+4. "OVERVIEW" label + summary (`bodyLarge`, line height 1.5).
+5. "AT A GLANCE" label + `_ReviewSpecTable`.
+6. "DETAILED REVIEW" label + every paragraph (`bodyMedium`, line height 1.55).
+7. Filled teal "View Full Comparison" button with `AppIcons.compare` icon.
+
+## 14.3 At-a-glance table
+
+`_ReviewSpecTable` is a surface card with a header row showing both car names, then rows for Price, Year, Mileage, Fuel, Transmission and Body. Label column is 104 wide, values are `Expanded`. Missing values render `N/A`.
+
+## 14.4 Cross navigation
+
+"View Full Comparison" pushes `CompareDetailsScreen(review.carA, review.carB)`. The article and the specification table must always describe the same two cars.
+
+# 15. ALL EXPERT REVIEWS SCREEN
+
+`AllReviewsScreen` — the full list behind "Read all expert reviews".
+
+- App bar title "All Expert Reviews" with a back arrow.
+- A count line: "1 review" or "N reviews".
+- Rows use the shared `ReviewListTile` (96x92 cover of car A, title, author and date, summary).
+- Pagination: `pageSize = 5`; "Load More Reviews" adds five rows at a time.
+- When everything is shown, the page ends with "You've seen all available reviews." in the disabled text colour.
+- Tapping a row pushes `ExpertReviewScreen(review)`.
+
+# 16. SAVED REVIEWS SCREEN
+
+`SavedReviewsScreen` — reached from the top-bar bookmark action.
+
+- App bar title "Saved Reviews" with a back arrow.
+- The screen loads every review and filters it with `CompareCatalogue.isSaved(r.id)`.
+- Count line: "1 saved review" or "N saved reviews".
+- Rows use the same `ReviewListTile`.
+- After returning from `ExpertReviewScreen` the screen rebuilds, because the bookmark may have changed while reading.
+- Empty state: a bookmark outline icon with "No saved reviews yet.\nTap the bookmark on a review to save it here."
+- Bookmarks live in memory only, so they are lost when the app restarts (see section 19).
+
+# 17. SHARE BEHAVIOUR
+
+`CompareCatalogue.buildComparisonShareText(a, b)` builds a plain-text summary and `Clipboard.setData` copies it. A 2-second snackbar confirms the copy.
+
+The text format is:
+
+```
+<A> vs <B>
+
+Price: <a> vs <b>
+Year: <a> vs <b>
+Body: <a> vs <b>
+Fuel: <a> vs <b>
+Transmission: <a> vs <b>
+Mileage: <a> vs <b>
+
+Compare cars in the Car Sales app.
+```
+
+Rules:
+
+- A null or blank field renders `N/A`.
+- The share action is available on `CompareDetailsScreen` and `ExpertReviewScreen`.
+- This is a clipboard copy, not an OS share sheet. The snackbar text must say "copied to clipboard" so the behaviour is not misrepresented.
+
+# 18. DATA LAYER
+
+## 18.1 The `Car` model
+
+Defined in `lib/shared/common/filter_results/filter_results.dart`:
+
+```dart
+class Car {
+  final String image;       // asset file name, e.g. 'BMW 7 Series.jpg'
+  final String name;        // display name, e.g. 'BMW 7 Series 2025'
+  final String brand;       // 'BMW'
+  final String km;          // '0 km'
+  final String fuel;        // 'Petrol'
+  final String transmission; // 'Automatic'
+  final String body;        // 'Sedan'
+  final int price;          // 8400000
+
+  String get priceText => '... ETB';   // grouped thousands + ETB
+  String? get year;        // trailing 4-digit year of the name, else null
+  String get modelName;    // name minus brand and year
+}
+```
+
+The model has no engine, dimension or feature fields. That is exactly why the detail screen renders `N/A` for those rows, and why the feature must not fabricate values.
+
+## 18.2 The `ComparisonReview` model
+
+```dart
+class ComparisonReview {
+  final String id;
+  final Car carA;
+  final Car carB;
+  final String title;
+  final String author;
+  final String date;
+  final String summary;
+  final List<String> paragraphs;
+}
+```
+
+Every article references two real `Car` objects so the specification table can never contradict the article.
+
+## 18.3 `CompareCatalogue`
+
+A static, local data gateway. It contains no network code and no second database.
+
+| Member | Behaviour |
+| ------ | --------- |
+| `fetchPopularPairs()` | Resolves every distinct pair from `newCars` after a 350 ms simulated delay. Result cached in `_pairsFuture`. |
+| `fetchReviews()` | Resolves the built review list after a 350 ms simulated delay. Result cached in `_reviewsFuture`. |
+| `refresh()` | Clears both cached futures so the next fetch reloads. Used by the retry buttons. Does not clear bookmarks. |
+| `isSaved(id)` / `toggleSaved(id)` | In-memory bookmark set of review ids. |
+| `buildComparisonShareText(a, b)` | Builds the clipboard summary. |
+
+The delay is intentional: it exercises the loading states. Do not remove it without also removing the skeleton UI.
+
+## 18.4 The review list
+
+Six reviews are defined in `CompareCatalogue._buildReviews()`. Each resolves its two cars through a helper that searches the catalogue by brand and model name:
+
+```dart
+Car byBrandModel(String brand, String key) => newCars.firstWhere(
+  (c) => c.brand == brand && c.name.contains(key),
+  orElse: () => newCars.first,
+);
+```
+
+This fallback is a defect — see section 22, P0-3. It must resolve to the intended car or fail loudly, never to an unrelated car.
+
+# 19. STATE MANAGEMENT AND CACHING
+
+- No third-party state package. The feature uses `StatefulWidget` local state plus static caches.
+- `_CompareBodyState` holds `_carA`, `_carB` and `_visiblePairs`.
+- `CompareScreen` lives inside the shell's `PageView`, so its state survives tab switches while the app is running.
+- The catalogue caches its futures so switching tabs does not re-flash the loading skeleton.
+- Bookmarks are stored in a static `Set<String>` and are therefore session-scoped. This is a documented limitation, not a bug to hide. The Favourites tab is still a placeholder, so there is no persisted store to reuse yet.
+
+# 20. ROUTES AND NAVIGATION
+
+| Route constant | Path | Target |
+| --------------- | ---- | ------ |
+| `AppRoutes.compare` | `/compare` | `CompareScreen` (registered in `AppRouter.routes()`) |
+| `AppRoutes.searchCars` | `/search-cars` | `CarSearchScreen` (shared search screen) |
+| `AppRoutes.compareCars` | `/compare-cars` | Declared but **not registered** — dead constant, see section 22, P2-2 |
+
+- Bottom navigation order: New, Used, Compare, News, Alerts. Compare is index 2 and uses `AppIcons.compare` (`LucideIcons.gitCompare`).
+- The selected bottom navigation item is teal (`#0F8F83`); unselected items are `Colors.grey[700]`.
+- The Compare tab must not add its own bottom navigation bar. The shell owns it.
+
+# 21. LOADING, EMPTY AND ERROR STATES
+
+Every asynchronous block in this feature has all three states.
+
+| Location | Loading | Error | Empty |
+| -------- | ------- | ----- | ----- |
+| Popular comparisons | 3 grey `SkeletonBlock` cards (height 210) | `_InlineNotice` with retry | "No comparisons available yet." |
+| Comparison tests carousel | 3 grey blocks, 272x300 | `_InlineNotice` with retry | "No expert reviews available yet." |
+| All reviews | 3 grey blocks (height 96) | Centred error with "Retry" | Centred "No expert reviews available yet." |
+| Saved reviews | 3 grey blocks (height 96) | Centred error with "Retry" | "No saved reviews yet." |
+| Select car | n/a (local data) | n/a | "No cars match your search" |
+
+Rules:
+
+- `SkeletonBlock` is a static grey rounded rectangle. It never animates, which keeps widget tests deterministic.
+- The retry action calls `CompareCatalogue.refresh()` and re-creates the future.
+- Error and empty messages are plain, friendly sentences. No raw exception text is shown to the user.
+
+# 22. KNOWN ISSUES AND DEFECTS
+
+`flutter analyze` currently reports **204 errors** across the project. **24 of them are inside the Compare feature** and must be fixed before this feature can run at all.
+
+## 22.1 P0 — the feature does not compile
+
+| ID | File | Problem | Required fix |
+| -- | ---- | ------- | ------------ |
+| P0-1 | `lib/core/constants/app_icons.dart` | `AppIcons.bookmark`, `AppIcons.bookmarkBorder`, `AppIcons.person` and `AppIcons.share` are used but never defined | Add the missing constants using Lucide names that exist in `lucide_icons_flutter` 4.0.1: `LucideIcons.bookmark` (use it for both `bookmark` and `bookmarkBorder`), `LucideIcons.user` (or `userCircle`) for `person`, `LucideIcons.share` for `share` |
+| P0-2 | `lib/features/bottom/compare/select_car/select_car.dart` | Imports `../../../../shared/common/filter_results/new_cars.dart`, which does not exist | Import `../../../../shared/common/filter_results/filter_results.dart` instead — it already exports `Car` and `newCars` |
+| P0-3 | `lib/features/bottom/compare/compare_catalogue/compare_catalogue.dart` | `byBrandModel` falls back to `newCars.first` | The current catalogue holds only four BMW/Porsche/BYD cars, so "Toyota Vitz", "Suzuki Swift", "Hyundai Tucson", "Toyota Land Cruiser" and "Honda City" all resolve to the first car. Every review then shows the same vehicle twice while the title talks about another car | Either add the referenced cars to the shared catalogue, or build the reviews from cars that exist. Never ship a review whose cars contradict its title |
+| P0-4 | `lib/core/constants/app_icons.dart` and every `const Icon(AppIcons....)` call site | The icon fields are declared as `static IconData` instead of `static const IconData`, so they cannot be used inside `const` widget trees | Change the fields to `static const IconData` (keeping the same Lucide names). This removes every `const_with_non_constant_argument` error in one place |
+
+## 22.2 P1 — correctness and data integrity
+
+| ID | Location | Problem | Required fix |
+| -- | -------- | ------- | ------------ |
+| P1-1 | `compare_details.dart`, Basic Information | `Condition` is hard-coded to "Used" for both cars, but the catalogue is the new-car catalogue (`km: '0 km'`) | Derive the condition from the catalogue, or label the row honestly ("New") |
+| P1-2 | `compare_catalogue.dart` | The catalogue exposes only price, year, condition and mileage; the remaining 15 rows are permanently `N/A` | Either extend the `Car` model with the missing fields, or trim the section list. Do not keep rows that can never be filled |
+| P1-3 | `compare.dart`, `_addCar()` | When both slots are filled, the button does nothing at all — no feedback, no visual change | Disable the button, or replace the selection when a slot is already chosen |
+| P1-4 | `compare_details.dart`, `_reset()` | The "Reset" button only pops the screen, so the label does not match the behaviour | Either rename it "Close" / "Back", or make it clear both slots and re-open the picker |
+| P1-5 | `compare.dart` | `SkeletonBlock` is duplicated in `compare.dart`, `all_reviews_screen.dart` and `saved_reviews_screen.dart` | Extract one shared widget under `lib/shared/widgets/` and import it in all three places |
+| P1-6 | `compare_details.dart` | Uses raw `Image.asset` while the rest of the feature uses `AppCarImage` | Use `AppCarImage` for the consistent fallback |
+| P1-7 | `search.dart` (reached from the Compare top bar) | The global search screen uses its own hard-coded list of six cars and prices that do not match the shared catalogue | Align it with the shared catalogue so search results and compare results agree |
+| P1-8 | `compare.dart` | The Compare tab has no filter for the popular list; with a larger catalogue the pair count grows combinatorially | Add a light ordering/filter (brand chip or "popular first") before the list becomes too long |
+
+## 22.3 P2 — cleanup and future work
+
+| ID | Location | Problem | Action |
+| -- | -------- | ------- | ------ |
+| P2-1 | `compare_catalogue.dart` | Bookmarks are lost on app restart | Move to the shared favourites store when one exists; document the limitation until then |
+| P2-2 | `app_routes.dart` | `AppRoutes.compareCars` (`/compare-cars`) is declared but never registered or used | Remove it, or register it and use it for the compare screen |
+| P2-3 | `compare_details.dart`, `expert_review_screen.dart` | Share is a clipboard copy, not an OS share sheet | Keep the honest wording, or add `share_plus` after the dependency is approved |
+| P2-4 | `compare_catalogue.dart` | Reviews are authored in code with fixed dates | Move to a JSON or backend source when one exists, keeping the same model |
+| P2-5 | `compare.dart` | The top-bar search opens the global search screen, which does not return a car to the compare slots | Add a "Compare this car" action to the search results when a search result is opened from Compare |
+
+## 22.4 Non-Compare errors that must not be confused with Compare errors
+
+`new.dart` (107), `new_impl.dart` (56), `used.dart` (4), `search.dart` (3), `bottom_nav_bar.dart` (3), `article_detail_screen.dart` (4), `video_details_screen.dart` (2) and `news_search_screen.dart` (1) also fail to compile. Fix them separately and report them separately. The Compare feature must not be blamed for them, and Compare work must not silently rewrite them.
+
+# 23. EXISTING CODE REVIEW AND SAFE MODIFICATION
+
+The Compare feature is largely written and the structure is good. Do not assume the code is wrong — inspect it first.
+
+For each component:
+
+- **Correct and useful:** keep it. The selector panels, popular cards, review cards, spec sections and review screens all follow the intended design.
+- **Mostly correct:** update only what is needed. The review cards and the popular cards are fine.
+- **Broken:** repair it. The missing icon constants and the bad import are broken.
+- **Incomplete:** extend it. The `N/A` specification rows and the session-only bookmarks are incomplete.
+- **Duplicated:** keep the best implementation and remove the rest once it is safe. `SkeletonBlock` is duplicated three times.
+- **Unused:** remove only after confirming it is unnecessary.
+- **Unclear:** investigate before changing or deleting it.
+
+Before each implementation task:
+
+1. Inspect the relevant files and dependencies.
+2. Identify what must be preserved, fixed, updated or removed.
+3. Report the intended file changes.
+4. Make focused changes.
+5. Verify with `flutter analyze` and `flutter test`.
+
+Rules:
+
+- Do not delete whole files or rebuild the feature from scratch.
+- Do not create a second `Car` model, a second catalogue or a second comparison engine.
+- Do not add a state-management package, a networking package or a database for this feature without an explicit decision.
+- Keep every unrelated feature working: New Cars, Used Cars, News and Alerts.
+- Keep prices in ETB and content relevant to the Ethiopian market.
+- Distinguish pre-existing errors from new errors in the report.
+
+# 24. INCREMENTAL IMPLEMENTATION PLAN
+
+Implement and verify the feature in this order. Do not attempt every stage in one operation.
+
+1. **Stage 1 — make it compile.** Add the missing `AppIcons` constants and make the icon fields `const`. Fix the `select_car.dart` import. Re-run `flutter analyze` and confirm the Compare errors are gone.
+2. **Stage 2 — fix the review data.** Make `byBrandModel` resolve real cars, so every article shows the two cars named in its title.
+3. **Stage 3 — correct the specification table.** Fix the hard-coded "Used" condition, decide whether to extend the `Car` model or trim the empty rows, and switch to `AppCarImage`.
+4. **Stage 4 — clean up duplication.** Extract one shared `SkeletonBlock` and use it in all three files. Remove or register the dead `AppRoutes.compareCars` constant.
+5. **Stage 5 — polish the interactions.** Fix the silent "+ Add Car" no-op, make "Reset" behave as its label says, and align the global search screen with the shared catalogue.
+6. **Stage 6 — harden the states.** Verify loading, error and empty states on every async block, including retry after a failure.
+7. **Stage 7 — verify on device.** Run the app on an Android device or emulator and walk through the full flow in section 25.
+
+# 25. TESTING AND ACCEPTANCE CHECKLIST
+
+## Layout
+
+- The tab bar shows "Compare Cars" with the search and saved-reviews actions.
+- Two equal selector panels sit side by side with the "VS" badge centred on the seam.
+- The "+ Add Car" and "Compare" buttons share the row equally.
+- "POPULAR CAR COMPARISONS" shows two cards initially.
+- "Less Comparisons" and "More Comparisons" appear and disappear correctly.
+- "COMPARISON TESTS" shows a horizontal carousel of 272 wide cards.
+- "Read all expert reviews" is full width.
+- The detail screen shows two headers, the 40px "VS" badge, the swap and reset actions, and all specification sections.
+- The review screen shows the title, author, cover, overview, at-a-glance table, body paragraphs and the "View Full Comparison" button.
+
+## Functionality
+
+- Tapping an empty panel opens the picker and fills that slot.
+- Tapping the remove button clears that slot.
+- "+ Add Car" fills the first free slot.
+- "Compare" is disabled until both slots are filled, then opens the detail screen with the two chosen cars.
+- The picker filters by keyword, brand and year, and clearing the query restores the full list.
+- The picker returns the tapped car to the compare page.
+- "More Comparisons" reveals two more cards and "Less Comparisons" returns to two.
+- Tapping a popular card opens the comparison for that exact pair.
+- Swapping cars flips every row of the specification table.
+- Share copies the summary text to the clipboard and confirms with a snackbar.
+- The bookmark toggles on the card and in the article, and the saved review appears in "Saved Reviews".
+- Returning from an article refreshes the saved list.
+- "View Full Comparison" opens the detail screen for the two cars in the article.
+- "Load More Reviews" adds five rows at a time.
+
+## Data integrity
+
+- Every value shown in a specification table comes from the `Car` model.
+- Missing values render `N/A`; nothing is invented.
+- Each expert review shows the two cars named in its title.
+- Popular pairs never repeat the same combination.
+- Prices are in ETB.
+
+## Quality
+
+- `flutter analyze` reports no errors in the Compare feature.
+- `flutter test` passes, including the existing tab navigation tests.
+- The feature works with the shared catalogue, without a second database.
+- No unrelated feature was modified or broken.
+- All remaining limitations (session-only bookmarks, clipboard-only share, `N/A` rows) are documented in the report.
+
+# 27. FOLDER STRUCTURE RECOMMENDATION
+
+## Recommended Directory Layout for Compare Feature
+
+```
+lib/features/bottom/compare/
+├── compare.dart                    # CompareScreen (tab page) - public API
+├── select_car/                     # Car picker screen
+│   └── select_car.dart             # SelectCarScreen - keyword search, brand/year filters
+├── compare_details/                # Comparison details screen
+│   └── compare_details.dart        # CompareDetailsScreen - two car headers, VS badge, specs
+├── compare_catalogue/              # Data gateway and review flow
+│   ├── compare_catalogue.dart      # ComparisonReview model + CompareCatalogue data gateway
+│   ├── all_reviews_screen.dart     # AllReviewsScreen - full list with pagination
+│   ├── expert_review_screen.dart   # ExpertReviewScreen - full article view
+│   ├── saved_reviews_screen.dart   # SavedReviewsScreen - bookmarked reviews
+│   ├── review_list_tile.dart       # ReviewListTile - compact review row (shared)
+│   └── review_card.dart            # _ReviewCard - review card widget
+├── widgets/                        # Shared widgets (import from lib/shared/)
+│   └── vs_badge.dart               # VsBadge - teal "VS" circle between two cars
+│   └── tab_page_shell.dart         # TabPageShell - top bar + body shell (shared)
+│   └── app_car_image.dart          # AppCarImage - asset image with error fallback (shared)
+└── docs/                           # Local documentation
+    └── compare_car_implementation.md
+
+## Key Reuse Patterns (per compare.doc)
+
+### 1. Car Model & Catalogue
+- **Reuse**: `lib/shared/common/filter_results/filter_results.dart`'s `Car` model
+- **Critical**: Do NOT create a second `Car` model or second catalogue
+- **Import**: Import `Car` from `filter_results.dart`, NOT from any feature-specific file
+- **Catalogue**: The Compare feature reads the shared `newCars` catalogue - no second database
+
+### 2. Comparison Engine
+- **Reuse**: `CompareCatalogue` from `compare_catalogue/compare_catalogue.dart`
+- **Single source**: Only one comparison engine exists - it lives in the compare feature
+- **Do NOT**: Duplicate the comparison engine or build your own list of cars/reviews
+- **Cached futures**: `CompareCatalogue.fetchPopularPairs()` and `fetchReviews()` are cached
+
+### 3. Shared Widgets (DO NOT duplicate)
+| Widget | Location | Usage |
+|--------|----------|-------|
+| `VsBadge` | `lib/shared/widgets/vs_badge.dart` | Between two car images in comparison views |
+| `TabPageShell` | `lib/shared/widgets/tab_page_shell.dart` | Top bar + body shell used by every bottom tab |
+| `AppCarImage` | `lib/shared/widgets/app_car_image.dart` | Asset image with error fallback |
+| `ReviewListTile` | `lib/features/bottom/compare/compare_catalogue/review_list_tile.dart` | Shared by All Reviews and Saved Reviews |
+
+### 4. Bottom Navigation Integration
+- **Reuse**: Existing 5-item bottom nav (New, Used, **Compare**, News, Alerts)
+- **Compare at index 2**: Teal when selected, `AppIcons.compare` (`LucideIcons.gitCompare`)
+- **Do NOT**: Add second navigation bar inside Compare page
+- **Shell ownership**: The navigation shell owns the bottom nav; Compare tab lives inside PageView
+
+### 5. Icon Library
+- **Reuse**: `lib/core/constants/app_icons.dart` with `LucideIcons` package
+- **Critical P0 fix**: Icon fields must be `static const IconData` (not `static IconData`)
+- **Defined icons**: `AppIcons.compare`, `AppIcons.bookmark`/`bookmarkBorder`, `AppIcons.person`, `AppIcons.share`, `Icons.swap_horiz`, `Icons.close`, `Icons.refresh`
+- **Fix required**: Add missing constants using Lucide names that exist in `lucide_icons_flutter` 4.0.1
+
+### 6. Color & Theme Integration
+- **Reuse**: Existing `app_colors.dart` palette
+- **Teal**: `#0F8F83` for primary accent, filled button, price text, VS badge, chip selection
+- **Pale teal**: `#EAF4F3` for empty selector icon circle
+- **Surface**: `#FAFAFA` for cards, panels, chips
+- **Divider**: `#E0E0E0` for 1px borders, dividers, skeleton blocks
+- **Text Primary**: `#1A1A2E` for car names, titles, spec values
+- **Text Secondary**: `#6B6B6B` for section headings, metadata, spec labels
+
+### 7. Specifications & N/A Handling
+- **Reuse**: `Car` model fields (price, year, fuel, transmission, body, km, modelName)
+- **Missing values**: Render `N/A`; never invent or substitute guesses
+- **Spec sections**: Basic Info, Engine & Performance, Transmission, Fuel, Dimensions, Features
+- **Do NOT**: Keep permanently `N/A` rows without deciding to extend the Car model or trim the section list
+
+### 8. Error States & Loading
+- **Reuse**: `SkeletonBlock` for loading states (extract shared widget, don't duplicate)
+- **Error states**: `_InlineNotice` with retry action calling `CompareCatalogue.refresh()`
+- **Empty states**: Friendly sentences like "No comparisons available yet."
+- **Do NOT**: Duplicate `SkeletonBlock` in multiple files (extract to shared widget per P1-7)
+
+### 9. Routes and Navigation
+- **Registered**: `AppRoutes.compare` (`/compare`) -> `CompareScreen`
+- **Shared search**: `AppRoutes.searchCars` (`/search-cars`) -> `CarSearchScreen`
+- **Do NOT**: Register dead constant `AppRoutes.compareCars` (`/compare-cars`) unless actually used
+- **Bottom nav order**: New, Used, **Compare**, News, Alerts
+
+## Implementation Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Single Car Model** | Only one `Car` model from `filter_results.dart` - never create a second |
+| **Single Catalogue** | Compare reads shared `newCars` - no second database/catalogue |
+| **Single Comparison Engine** | Only `CompareCatalogue` exists - no duplicate engines |
+| **Heavy Widget Reuse** | `VsBadge`, `TabPageShell`, `AppCarImage`, `ReviewListTile` are shared - do NOT copy |
+| **Incremental Fixes** | Fix P0/P1 issues first (icons, imports, data resolution) before features |
+| **ETB Pricing** | All prices in Ethiopian Birr, grouped thousands + "ETB" suffix |
+| **N/A Honesty** | Missing values render `N/A`; decide to extend Car model or trim empty rows |
+| **Bottom Nav Single** | 5-item nav only, Compare at index 2, no second navigation bar |
+
+## Development Workflow
+
+1. **Start with compilation**: Fix P0 issues first (missing icon constants, `const` fields, import fixes)
+2. **Fix review data**: Make `byBrandModel` resolve real cars so articles show correct vehicles
+3. **Correct specification table**: Fix hard-coded "Used", decide on Car model extension vs. trimming
+4. **Clean up duplication**: Extract shared `SkeletonBlock`, remove/register dead route constants
+5. **Polish interactions**: Fix silent "+ Add Car" no-op, make "Reset" behave as labeled, align search
+6. **Harden states**: Verify loading, error, empty states on all async blocks
+7. **Verify on device**: Walk through full flow, confirm layout and functionality
+
+## What NOT to Do
+
+❌ **Do NOT create a second `Car` model** - import from `filter_results.dart` only
+❌ **Do NOT build a second catalogue** - Compare reads the shared `newCars` catalogue
+❌ **Do NOT duplicate the comparison engine** - `CompareCatalogue` is the single entry point
+❌ **Do NOT duplicate shared widgets** - `VsBadge`, `TabPageShell`, `AppCarImage` are shared - import them
+❌ **Do NOT add `static IconData` fields** - change to `static const IconData` per P0-4 fix
+❌ **Do NOT invent specification values** - missing fields render `N/A`, never substitute guesses
+❌ **Do NOT add a second bottom navigation bar** - the shell owns the bottom nav
+❌ **Do NOT claim integrations work unless verified** - document limitations like session-only bookmarks
+❌ **Do NOT duplicate SkeletonBlock** - extract to shared widget (P1-7)
+
+⚠️ **Critical**: The Compare feature must not create a second Car model, second catalogue, or second comparison engine. These are the top three P0/P1 defects blocking compilation and correct behavior.
+
+This section serves as a guide for the development team to organize code consistently with the project's existing patterns and the `compare.doc` specification, emphasizing the single-car-model and single-catalogue constraints that are fundamental to this feature's architecture.
+
+# 26. DEFINITION OF DONE
+
+The Compare feature is ready when it compiles cleanly, the two-car selection flow works end to end, the specification table shows only real data, the expert reviews show the cars they describe, every loading, error and empty state is handled, the layout has been checked on an Android device or emulator, and every remaining limitation is documented.
+
+The implementation report must list:
+
+- Files inspected.
+- Files modified or created.
+- Code preserved.
+- Bugs fixed, including the P0 and P1 items from section 22.
+- Redundant code removed and why.
+- `flutter analyze` and `flutter test` results, with pre-existing errors listed separately.
+- Missing integrations and remaining issues.
+
+Do not claim completion until the implementation and verification have actually been performed.
+
+This is the consolidated master specification for the Compare feature. Use it as the source of truth, then implement it one stage at a time in OpenCode.
