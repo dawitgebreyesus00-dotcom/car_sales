@@ -1,0 +1,798 @@
+Here is the final consolidated documentation for your Ethiopian Flutter `car_sales` project's Used Cars main page. It includes all sections, styling, interactions, and rules for preserving your existing code. It is written as a standalone specification without references to pictures.
+
+# USED CARS MAIN PAGE — COMPLETE IMPLEMENTATION DOCUMENTATION
+
+**Project:** `car_sales`  
+**Framework:** Flutter and Dart  
+**Platform:** Android  
+**Market:** Ethiopia  
+**Scope:** Used Cars home page only  
+**Purpose:** Guide OpenCode to inspect, improve, and complete the existing Used Cars page without unnecessarily rebuilding the application.
+
+---
+
+# 1. PROJECT OBJECTIVE
+
+Build a professional, responsive Used Cars home page for an Ethiopian car sales application.
+
+The page must provide used car listings, city selection, filtering, valuation tools, loan options, and a "sell your car" affordance in one continuous scrollable layout.
+
+Core rules:
+1. Inspect the existing project before editing.
+2. Preserve correct and useful code.
+3. Repair broken code.
+4. Update incomplete components.
+5. Remove genuinely redundant code only after verifying it is safe to remove.
+6. Reuse existing models, assets, navigation, state management, and services.
+7. Do not rewrite the entire page unnecessarily.
+8. Preserve New Cars, Compare, News, and Alerts functionality.
+9. Use Ethiopian-market content and ETB prices.
+10. Do not claim an integration works unless it has been verified.
+
+---
+
+# 2. COMPLETE PAGE STRUCTURE
+
+Implement the sections in this exact order:
+
+1. Header and top action bar (search + location).
+2. Promo carousel.
+3. "Find Second Hand Cars" card + location search field.
+4. "Used Cars By City" section + city grid.
+5. "Other Cities" affordance.
+6. "Find The Cars Of Your Choice" filter section (Budget, Body Type, Fuel Type, Transmission).
+7. "Popular Pre Owned Cars" section (tab bar: Models / Brands, car cards, brand grid, View All button).
+8. "Want to Sell Your Car?" banner + description + feature grid.
+9. "Tools You May Need" section (Used Car Valuation + Instant Car Loan).
+10. Price disclaimer.
+
+The sections belong to one Used Cars home page. They must not be implemented as separate screens simply because they have different layouts.
+
+---
+
+# 3. GLOBAL VISUAL DESIGN
+
+## 3.1 Colors
+
+### Professional Color System for Ethiopian Car Sales Application
+
+This documentation defines a complete color system for a modern, professional Ethiopian car sales application with **Muted Blue** as the primary brand color.
+
+#### Primary Brand Color
+
+| Color | Hex | Purpose |
+|-------|-----|---------|
+| **Muted Blue** | `#647FA3` | Brand identity, selected navigation icons, active states, important highlights |
+| **Dark Muted Blue** | `#526D91` | Primary buttons (Search, Sell Your Car), prominent actions |
+| **Light Blue** | `#EAF0F7` | Selected filter chips, subtle highlights, light blue backgrounds |
+| **Deep Navy** | `#34465E` | Headings, important text, strong visual emphasis |
+
+#### Supporting Colors
+
+| Color | Hex | Purpose |
+|-------|-----|---------|
+| **White** | `#FFFFFF` | Main background color, car listing cards |
+| **Cool Gray** | `#F1F4F8` | Secondary sections, input backgrounds, subtle surfaces |
+| **Secondary Text Gray** | `#64748B` | Descriptions, subtitles, less important information |
+| **Border Gray** | `#D9E0E8` | Card borders, dividers, input outlines |
+
+#### Color Usage Rules
+
+- Use white as the dominant background color (≈60% of screen)
+- Use muted blue consistently as the primary brand color throughout the application
+- Use darker blue (#526D91) for important buttons with white text
+- Use light blue (#EAF0F7) for selected filters and subtle highlights
+- Use deep navy (#34465E) for headings and important text
+- Use cool gray (#F1F4F8) for secondary backgrounds and input fields
+- Keep borders subtle (#D9E0E8) and avoid excessive shadows
+- Ensure text and icons have sufficient contrast against their backgrounds
+- Keep car photographs visually prominent by avoiding unnecessary colored backgrounds
+- Avoid using too many unrelated colors or gradients
+- Use **green** (#16A34A) for successful actions
+- Use **red** (#DC2626) for errors or destructive actions
+- Use **orange** (#F97316) only for relevant warnings
+
+#### Color Proportions (General Guidelines)
+
+- **60%** white backgrounds
+- **25%** light neutral surfaces and gray
+- **15%** blue accents and brand elements
+
+These proportions are flexible and should adapt to each screen.
+
+#### Navigation Design
+
+- Use a **white bottom navigation bar**
+- Use **muted blue** (#647FA3) for the selected navigation icon and label
+- Use **gray** for unselected icons and labels
+- Keep navigation icons consistent in size, stroke, and style
+- Use light blue (#EAF0F7) only for subtle selected-item backgrounds when appropriate
+- Maintain the same navigation style across all main pages
+
+#### Existing Color Tokens (Preserved for Backward Compatibility)
+
+| Token | Hex | Notes |
+|-------|-----|-------|
+| `brandAccent` | `#1B5E20` | Ethiopian flag green (legacy) |
+| `teal` | `#0F8F83` | Legacy premium teal |
+| `success` | `#16A34A` | Green for successful actions |
+| `warning` | `#D97706` | Amber for warnings |
+| `error` | `#DC2626` | Red for errors/destructive actions |
+| `priceAccent` | `#E65100` | Amber for prices |
+
+#### Color Implementation in Flutter
+
+All colors are defined in `lib/core/constants/app_colors.dart` as `static const Color` values. Use the `AppColors` class throughout the application instead of defining colors inline.
+
+**Example Usage:**
+
+```dart
+// Primary brand color
+Container(color: AppColors.brandPrimary), // #647FA3
+
+// Darker blue for buttons
+ElevatedButton(
+  style: ElevatedButton.styleFrom(
+    backgroundColor: AppColors.brandPrimaryDark, // #526D91
+    foregroundColor: Colors.white,
+  ),
+  onPressed: () {},
+  child: const Text('Search'),
+)
+
+// Light blue for selected filters
+Container(
+  color: AppColors.brandPrimaryLight, // #EAF0F7
+  child: const FilterChip(label: Text('SUV')),
+)
+
+// Deep navy for headings
+Text(
+  style: TextStyle(
+    color: AppColors.brandDeepNavy, // #34465E
+    fontWeight: FontWeight.w600,
+  ),
+  text: 'Used Cars',
+)
+
+// Border gray
+Container(
+  decoration: BoxDecoration(
+    border: Border.all(color: AppColors.borderGray), // #D9E0E8
+  ),
+  child: const TextField(),
+)
+
+## 4.1 Header
+
+Display:
+
+- App logo/brand identity on the left (e.g., 'carsales' text).
+- Location icon chip toward the right with a small red notification dot.
+- Favorites heart at the far right.
+
+Use a white or very light gray background, balanced spacing, consistent icon sizes, and proper Android safe-area handling.
+
+Reuse the existing shared header if one already exists. Do not create a duplicate header.
+
+## 4.2 Location action chip
+
+Display a white chip with location icon and "Location" tooltip.
+
+- White surface.
+- Thin gray border.
+- Rounded corners.
+- Pale teal icon background behind the icon.
+- Red circular notification dot (top-right) indicating new alerts/messages.
+
+Tapping the chip should navigate to the existing location route (`/location`).
+
+## 4.3 Pinned behavior
+
+Keep the header and top action bar visible while the user scrolls, consistent with the intended design.
+
+Use the existing app-bar or scroll architecture if it works correctly. Ensure the pinned elements do not cover content or conflict with Android system bars.
+
+---
+
+# 5. PROMO CAROUSEL
+
+Place a large landscape promotional banner at the top of the used cars page.
+
+Requirements:
+
+- Wide landscape image.
+- Rounded corners (16–22 px radius).
+- Consistent side margins.
+- Appropriate image fitting (cover/contain).
+- No stretching.
+- Adequate vertical spacing below (28–40 px).
+
+Use an existing suitable asset. If none exists, use a clearly identified placeholder rather than an unrelated or misleading image.
+
+---
+
+# 6. "FIND SECOND HAND CARS" CARD
+
+Display a white rounded card with border below the promo carousel.
+
+Layout:
+
+- Padding: significant horizontal padding.
+- Background: white surface.
+- Border: thin gray divider border.
+- Corner radius: 16–22 px.
+- Box shadow: subtle, offset (0, 4), blur 12.
+
+Inside the card:
+
+- Heading: "Find Second Hand Cars" (titleLarge, semibold, primary text color).
+- Subheading or description text (bodyMedium, secondary text color).
+- Location search field (see Section 7).
+- Two action buttons: "Sell Your Car" and "Check Value of Your Car" (horizontal row, divided by a thin divider).
+
+---
+
+# 7. LOCATION SEARCH FIELD
+
+Display a wide search field below the "Find Second Hand Cars" card.
+
+Layout:
+
+- Height: 52 px.
+- White background.
+- Thin gray border, rounded corners (26 px radius).
+- Left: location icon (20 px).
+- Left padding: comfortable horizontal spacing.
+- Center: text "View Used cars in [City]" (bodyMedium, semibold, secondary text).
+- Right: forward arrow icon inside circular teal button (20 px).
+
+Tapping the search field or the forward arrow should navigate to the search cars route (`/search-cars`) or keep the navigation consistent with existing behavior.
+
+---
+
+# 8. "USED CARS BY CITY" SECTION
+
+Display a section titled "Used Cars By City".
+
+Layout:
+
+- Section title (titleMedium, semibold, secondary text color).
+- Standard gap below title (16 px).
+- City grid: exactly 3 equal columns with subtle dividers between them.
+- Grid container: white surface, thin gray border, rounded corners (16–22 px).
+- Each city tile: icon (locationCity), city name (labelMedium, primary text), center-aligned.
+
+Cities (Ethiopian sample list, preserve existing):
+
+- Addis Ababa
+- Amhara
+- Oromia
+- Tigray
+- Sidama
+- SNNPR
+- Somali
+- Afar
+- Benishangul-Gumuz
+
+## 8.1 "Other Cities" tile
+
+Below the city grid, display a white rounded tile labeled "Other Cities".
+
+- White surface, thin border, rounded corners.
+- Center-aligned text + right arrow icon.
+- Tapping should navigate to or show additional city options (document missing integration if not implemented).
+
+---
+
+# 9. "FIND THE CARS OF YOUR CHOICE" FILTER SECTION
+
+Display a section titled "Find The Cars Of Your Choice".
+
+Layout:
+
+- Section title (titleMedium, semibold, secondary text color).
+- Standard gap below title (16 px).
+- Filter category tabs: Budget, Body Type, Fuel Type, Transmission.
+- Each tab: outline icon, teal selection/underline when active, dark gray when inactive.
+- Tabs are horizontally scrollable if needed.
+
+## 9.1 Filter tabs detail
+
+### Budget
+
+- Initially display price ranges (ETB).
+- Two-column grid of price range chips: 1M–1.5M, 1.5M–2M, 2M–3M, 3M+.
+- Each chip: pale teal background, rounded corners, thin border, icon (payments), label.
+- "Luxury Cars" row at the bottom: teal outlined chip with chevron, tapping opens luxury brand list.
+
+### Body Type
+
+- Initially select "SUV/MUV".
+- Horizontally scrollable chips: SUV/MUV, Hatchback, Sedan.
+
+### Fuel Type
+
+- Initially display supported fuel types.
+- Horizontally scrollable chips with icons: Petrol, Diesel, CNG, Electric, LPG, Hybrid.
+- Each chip uses appropriate icon (local_gas_station, oil_barrel, compress, electric_car, propane_tank, eco).
+
+### Transmission
+
+- Horizontally scrollable chips: Automatic, Manual, Clutchless Manual.
+- Each chip uses appropriate icon (settings, settings_input_hdmi, swap_horiz).
+
+Filter behavior:
+
+- Selecting a chip/filter updates the vehicle list below.
+- Switching tabs updates available chips.
+- Reuse existing filter state and models.
+
+---
+
+# 10. "Popular Pre Owned Cars" SECTION
+
+Display a section titled "Popular Pre Owned Cars".
+
+Layout:
+
+- Section title (titleMedium, semibold, secondary text color).
+- Standard gap below title (16 px).
+- Two-tab selector at the top: "POPULAR MODELS" / "BRANDS".
+- Selected tab in teal with underline, unselected in dark gray.
+
+## 10.1 Popular Models / Brands tab bar
+
+- Row of two tabs.
+- Tapping switches between models grid and brands grid.
+- Animation/transition when switching.
+
+## 10.2 Popular Models grid (default)
+
+Display a horizontally scrollable row of used car cards (3–5 cards max).
+
+Each card:
+
+- Width: ~200 px.
+- White surface, rounded corners, thin border.
+- Image at top (120 px height, cover fit).
+- Brand and model name below image (titleSmall, primary text).
+- "Starting Price" label (bodySmall, secondary text).
+- Price amount (titleSmall, teal color).
+
+Sample data (ETB prices, preserve existing):
+
+- BMW 7 Series 2025: 8,400,000 ETB
+- BMW 5 Series 2025: 9,703,200 ETB
+- Porsche Panamera 2025: 39,400,000 ETB
+- BYD Sealion 7 2025: 7,000,000 ETB
+
+## 10.3 Brands grid
+
+Display a 3-column grid of brand cells.
+
+Each cell:
+
+- Square container (40×40 px for logo + text).
+- Brand monogram initial (Teal color, circular background #F0F2F5).
+- Brand name below (labelMedium, primary text).
+
+Sample brands (preserve existing):
+
+- Maruti Suzuki
+- Hyundai
+- Tata
+- Mahindra
+- BMW
+- Mercedes-Benz
+- Toyota
+- Honda
+- Audi
+
+At the bottom of the brands grid: full-width "View All Brands" button (outlined teal).
+
+## 10.4 "View All Used Cars" button
+
+Below the grid/carousel, display a full-width outlined teal button.
+
+- Label: "View All Used Cars".
+- On tap: navigate to the used cars catalog route (`/explore-used-cars`).
+- Style: outlined border (teal), teal text, rounded corners.
+
+---
+
+# 11. "WANT TO SELL YOUR CAR?" BANNER
+
+Display a white rounded card with title, description, feature grid, and teal outlined "Sell Your Car" button.
+
+Layout:
+
+- Significant top padding (xl).
+- White surface, thin gray border, rounded corners (Lg radius).
+- Maximum width: full screen, appropriate horizontal padding.
+
+Inside the card:
+
+- Heading: "Want to Sell Your Car ?" (titleLarge, semibold, primary text).
+- Description paragraph: "Over 2.5 million used car buyers visit our site every month looking for a used car!" (bodyMedium, secondary text, height 1.4).
+- Feature grid: 2×2 grid of feature items (lg horizontal gap, lg vertical gap between rows).
+- Each feature: small teal circular icon (38 px) + label text (bodySmall, primary text, height 1.2).
+
+Feature items (preserve existing):
+
+1. Sell within days (calendar_today_outlined).
+2. Best price deal (payments_outlined).
+3. Verified buyers (verified_user_outlined).
+4. 90 days ad validity (schedule).
+
+- Below the feature grid: significant gap (lg).
+- Full-width outlined teal button: "Sell Your Car" (buttonHeight, teal border, teal text, rounded corners).
+
+On tap: navigate to sell car route (`/sell-car`).
+
+---
+
+# 12. "Tools You May Need" SECTION
+
+Display a section titled "Tools You May Need".
+
+Layout:
+
+- Significant top padding (xl).
+- Section title (titleMedium, semibold, secondary text color).
+- Standard gap below title (16 px).
+- White rounded container with thin gray border and rounded corners (Lg radius).
+- Inside container: two horizontal tool items separated by a thin divider.
+
+## 12.1 Tool items (horizontal row)
+
+Each tool item contains:
+
+- Light teal circular icon (52×52 px) on the left.
+- Bold title (titleSmall, fontWeight 400, primary text).
+- Small gap (md).
+- Description text (bodySmall, secondary text, height 1.35, wrapped).
+- Right chevron icon (20 px, secondary text).
+
+Tool 1: "Used Car Valuation"
+- Icon: confirmation_number_outlined.
+- Description: "Check the price of a used car with our calculator".
+
+On tap: navigate to car valuation route (`/check-car-valuation`).
+
+Tool 2: "Instant Car Loan"
+- Icon: attach_money.
+- Description: "Apply and get the best Car Loan Offers within minutes".
+
+On tap: navigate to car loan route (`/loan`).
+
+---
+
+# 13. PRICE DISCLAIMER
+
+Display an appropriate disclaimer near the relevant car catalog sections.
+
+Recommended wording:
+
+"Prices are indicative and may vary by location and dealer."
+
+Use a more specific on-road price disclaimer only when supported by the underlying data.
+
+Do not use Indian locations, INR, or Indian lakh-based pricing.
+
+Place the disclaimer below the filtered car list, below the popular cars section, or at the bottom of the page in a subtle font.
+
+---
+
+# 14. BOTTOM NAVIGATION
+
+Keep the existing five-item bottom navigation:
+
+1. New.
+2. **Used** (selected when on this page).
+3. Compare.
+4. News.
+5. Alerts.
+
+Use:
+
+- White background.
+- Subtle upper border or shadow.
+- Consistent outline icons.
+- Teal selected state for **Used** when this page is active.
+- Pale teal selected-icon background where appropriate.
+- Safe-area handling.
+
+Reuse the existing shared navigation component. Do not add a second bottom navigation bar inside the Used Cars page.
+
+---
+
+# 15. PAGE SCROLLING AND RESPONSIVENESS
+
+The entire Used Cars page must be one continuous vertical scrollable layout.
+
+Requirements:
+
+- Header and top action bar remain pinned.
+- Main sections scroll vertically.
+- Car cards scroll horizontally (city grid, filter chips, brand grid).
+- Brand grid adapts to available width.
+- Bottom navigation remains visible.
+- No content is hidden behind pinned controls.
+- No unbounded height or nested scrolling errors.
+- No overflow on narrow Android devices.
+
+Use the existing scrolling architecture if it is correct. Otherwise, update it to a suitable Flutter structure without unnecessarily rewriting unrelated widgets.
+
+---
+
+# 16. DATA AND LOCALIZATION
+
+Use Ethiopian-market vehicle content.
+
+Requirements:
+
+- Prices use ETB where known.
+- No Indian rupee prices or lakh notation.
+- No Indian location references.
+- No fabricated live news or inventory.
+- No unverified prices presented as facts.
+- No invented article URLs.
+- No invented taxes or dealer fees.
+
+Reuse existing models and assets. Clearly identify sample data.
+
+If a backend, live news source, browsing history, personalized recommendations, or price-breakdown service is missing, document that limitation rather than pretending the feature is connected.
+
+---
+
+# 17. EXISTING CODE REVIEW AND SAFE MODIFICATION
+
+I have already written some code for the Used Cars main page.
+
+Do not assume that the code is wrong. Inspect it first.
+
+For each component:
+
+- **Correct and useful:** Keep it.
+- **Mostly correct:** Update only what is needed.
+- **Broken:** Repair it.
+- **Incomplete:** Extend it.
+- **Duplicated:** Keep the best existing implementation and remove redundant copies only when safe.
+- **Unused:** Remove only after confirming that it is unnecessary.
+- **Unclear:** Investigate before changing or deleting it.
+
+Before each implementation task:
+
+1. Inspect relevant files and dependencies.
+2. Identify what should be preserved, fixed, updated, or removed.
+3. Report the intended file changes.
+4. Make focused changes.
+5. Verify the result.
+
+Do not delete whole files, replace the entire home page, or remove dependencies without verifying the consequences.
+
+Preserve all unrelated functionality, particularly New Cars, Compare, News, and Alerts.
+
+---
+
+# 18. INCREMENTAL IMPLEMENTATION PLAN
+
+Implement and verify the page in this order:
+
+1. Header, top action bar, and location chip.
+2. Promo carousel.
+3. "Find Second Hand Cars" card + location search field.
+4. "Used Cars By City" section + city grid + Other Cities tile.
+5. "Find The Cars Of Your Choice" filter section with all four tabs.
+6. "Popular Pre Owned Cars" section with tab bar, models grid, brands grid, View All button.
+7. "Want to Sell Your Car?" banner + description + feature grid + Sell button.
+8. "Tools You May Need" section with car valuation + car loan tools.
+9. Price disclaimer placement.
+10. Bottom navigation verification.
+
+Do not attempt to implement all ten stages in one operation. Complete each stage and review it before continuing.
+
+---
+
+# 19. TESTING AND ACCEPTANCE CHECKLIST
+
+## Layout
+
+- Header and search are correctly aligned.
+- Location chip has correct icon, border, and notification dot.
+- Promo carousel has correct proportions and rounded corners.
+- "Find Second Hand Cars" card has correct border, shadow, and action buttons.
+- Location search field has correct height, border, and placeholder text.
+- City grid has exactly 3 columns with dividers.
+- "Other Cities" tile is present and styled.
+- Filter tabs (Budget, Body Type, Fuel Type, Transmission) are in correct order.
+- Filter chips within each tab have correct icons and styling.
+- Popular models car cards have correct width, image height, and price format.
+- Brands grid has 3-column layout with monogram logos.
+- "View All Used Cars" button is present and styled.
+- "Want to Sell Your Car?" banner has correct description and 2×2 feature grid.
+- Feature items have correct icon + label layout.
+- "Sell Your Car" button at bottom of banner is present and styled.
+- "Tools You May Need" section has correct title, gap, and two tool items.
+- Tool items have correct icons, titles, descriptions, and chevrons.
+- Price disclaimer is present with recommended wording.
+- Bottom navigation has 5 items with "Used" selected.
+
+## Functionality
+
+- Location chip navigates to location route.
+- Search field / forward arrow navigates to search cars.
+- City tiles navigate or show interaction.
+- "Other Cities" tile has documented missing integration if not implemented.
+- Filter tabs switch and update content when supported.
+- Budget price ranges update filtered list.
+- Body type/fuel type/transmission chips update results.
+- Popular models/brands tab bar switches correctly.
+- Car card tapping opens vehicle details page.
+- "View All Used Cars" navigates to used cars catalog.
+- "Sell Your Car" banner button navigates to sell car route.
+- Used car valuation tool navigates to check car valuation.
+- Instant car loan tool navigates to car loan route.
+- Bottom navigation remains functional across all pages.
+
+## Quality
+
+- Ethiopian-market content and ETB pricing are used where available.
+- Sample data and missing integrations are clearly documented.
+- Existing correct code has been preserved.
+- Unnecessary code has been removed only after verification.
+- No new overflow or runtime errors have been introduced.
+- Flutter analysis has been run (no errors or warnings).
+- Relevant tests have been run.
+- Pre-existing errors are distinguished from new errors.
+
+---
+
+# 20. DEFINITION OF DONE
+
+The Used Cars home page is ready when every required section is implemented in the specified order, the layout and scrolling have been checked on an Android device or emulator, existing navigation and shared functionality work correctly, and all remaining limitations are documented.
+
+The implementation report must list:
+
+- Files inspected.
+- Files modified or created.
+- Code preserved.
+- Bugs fixed.
+- Redundant code removed and why.
+- Analysis and test results.
+- Missing integrations and remaining issues.
+
+Do not claim completion until the implementation and verification have actually been performed.
+
+This is the consolidated master specification. Use it as the source of truth for your Used Cars agent, then implement it one stage at a time in OpenCode.
+
+# 21. FOLDER STRUCTURE RECOMMENDATION
+
+## Recommended Directory Layout for Used Cars Feature
+
+```
+features/bottom/used/
+├── used.dart                    # Public widget - the UsedScreen (public API)
+├── used_impl.dart               # Internal implementation (primary development file)
+│   ├── widgets/                # Reusable widgets specific to Used Cars
+│   │   ├── _TopBar.dart       # Header with logo, location chip, favorites heart
+│   │   ├── _LocationChip.dart # Location chip with notification dot
+│   │   ├── _PromoCarousel.dart # Promo carousel widget
+│   │   ├── _FindSecondHandCard.dart # "Find Second Hand Cars" card
+│   │   ├── _LocationSearchField.dart # Location search field widget
+│   │   ├── _CityGrid.dart     # City grid (3 columns)
+│   │   ├── _OtherCitiesTile.dart # "Other Cities" tile
+│   │   ├── _FilterTabs.dart   # Filter tabs (Budget, Body Type, Fuel Type, Transmission)
+│   │   ├── _PriceRangeChips.dart # Budget price range chips
+│   │   ├── _FilterChip.dart   # Individual filter chip (Body Type, Fuel, Transmission)
+│   │   ├── _PopularModelsGrid.dart # Popular models car cards grid
+│   │   ├── _BrandsGrid.dart   # 3-column brands grid
+│   │   ├── _ViewAllButton.dart # "View All Used Cars" button
+│   │   ├── _SellYourCarBanner.dart # "Want to Sell Your Car?" banner
+│   │   ├── _FeatureGrid.dart  # 2×2 feature grid inside sell banner
+│   │   ├── _ToolItem.dart     # Tool item (valuation, loan)
+│   │   ├── _PriceDisclaimer.dart # Price disclaimer widget
+│   │   └── _SpecChip.dart     # Specification chip (year, body, fuel, transmission, km)
+│   ├── models/                 # Domain models (reuse filter_results.Car)
+│   │   └── used_car.dart       # Used car specific model if needed
+│   ├── states/                 # State management (if using)
+│   │   └── used_cars_state.dart
+│   └── used_cars_page.dart    # The main page widget assembling all sections
+├── services/                   # API/services (if needed)
+│   └── used_cars_service.dart
+└── docs/                       # Local documentation
+    └── used_car_implementation.md
+
+## Key Reuse Patterns (per used.doc)
+
+### 1. Comparison & Navigation Integration
+- **Bottom navigation**: Reuse existing 5-item nav (New, **Used**, Compare, News, Alerts)
+- **Do NOT**: Add second navigation bar inside Used Cars page
+- **Route navigation**: Use existing routes from `app_routes.dart`:
+  - `/location` for location chip
+  - `/search-cars` for search field
+  - `/explore-used-cars` for "View All Used Cars" button
+  - `/sell-car` for "Sell Your Car" banner button
+  - `/check-car-valuation` for valuation tool
+  - `/loan` for instant car loan tool
+
+### 2. Brand Logos & Logos
+- **Reuse**: `shared/common/brand_logos.dart` with `SimpleIcons` package
+- **Fallback**: First-letter initial when logo unavailable (used in brands grid)
+- **Brand grid**: 3-column layout per §10.3 specification
+
+### 3. Car Images & Specifications
+- **Reuse**: `shared/widgets/app_car_image.dart` with error fallbacks
+- **Spec chips**: Reuse pattern from `car_details_screen.dart`'s `_SpecChip` for year/body/fuel/transmission/km
+- **Price format**: ETB with thousands separator + "ETB" suffix (from `filter_results.Car.priceText`)
+- **Do NOT**: Use Indian rupees or lakh notation
+
+### 4. Filter Results
+- **Reuse**: `shared/common/filter_results/filter_results.dart`'s `Car` model and `FilteredResultsScreen`
+- **Filter chips**: Budget price ranges, Body Type (SUV/MUV, Hatchback, Sedan), Fuel Type (Petrol, Diesel, CNG, Electric, LPG, Hybrid), Transmission (Automatic, Manual, Clutchless Manual)
+- **Do NOT**: Duplicate filtering logic - reuse existing filter state and models
+
+### 5. Bottom Navigation (§14)
+- **Reuse**: Existing 5-item bottom nav (New, **Used**, Compare, News, Alerts)
+- **Selected state**: Teal for **Used** when on Used Cars page
+- **Do NOT**: Add second navigation bar inside Used Cars page
+
+### 6. Color & Theme Integration
+- **Reuse**: Existing `app_colors.dart` palette (with used.doc §3.1 colors as starting values)
+- **Teal**: `#217F78` for selected states
+- **Pale teal**: `#EAF7F5` for icon backgrounds
+- **Outlined action**: `#287B99` for "Sell Your Car" button
+- **Red notification**: `#FF0000` for location/badge dot
+
+### 7. Promo Carousel (§5)
+- **Reuse**: `shared/widgets/promo_carousel.dart` for promotional banner
+- **Images**: Existing assets or clearly identified placeholders
+
+### 8. Icon Library
+- **Reuse**: `core/constants/app_icons.dart` with `LucideIcons` package
+- **Specific icons used**:
+  - `locationCity` for location chip
+  - `filter` for filter tabs
+  - `payments` for budget/price chips
+  - `local_gas_station`, `oil_barrel`, `electric_car` for fuel type
+  - `settings`, `settings_input_hdmi`, `swap_horiz` for transmission
+  - `calendar_today_outlined`, `payments_outlined`, `verified_user_outlined`, `schedule` for sell banner features
+  - `confirmation_number_outlined` for valuation tool
+  - `attach_money` for loan tool
+
+## Implementation Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Heavy Reuse** | ~80% of code from existing features (compare, news, new cars) |
+| **Incremental** | Implement sections per order in §18 (10 stages) |
+| **ETB Pricing** | All prices in Ethiopian Birr, no INR/lakh notation |
+| **Sample Data** | Clearly identify missing integrations vs. real data |
+| **Safe Modification** | Inspect before editing per §17 rules |
+| **Preserve Functionality** | Keep New Cars, Compare, News, Alerts intact |
+| **Bottom Nav** | Single 5-item nav only, "Used" selected when on this page |
+
+## Development Workflow
+
+1. **Start with `used.dart`** as the public entry point
+2. **Create `used_impl.dart`** with all section widgets
+3. **Implement incrementally** following §18 order (10 stages)
+4. **Reuse existing widgets** where patterns match (especially from new, compare, news)
+5. **Document missing integrations** clearly rather than pretending
+6. **Run Flutter analysis** after each stage (quality checks §19)
+7. **Verify bottom navigation** remains functional (5 items, "Used" selected)
+
+## What NOT to Do
+
+❌ Don't create duplicate filtering engine - reuse `filter_results.dart`
+❌ Don't invent new news database - reuse `news.dart` patterns
+❌ Don't rewrite entire page unnecessarily - follow incremental plan
+❌ Don't use Indian pricing - ETB only, "Contact for price" where needed
+❌ Don't add second bottom navigation - reuse existing 5-item nav
+❌ Don't claim integrations work unless verified - document limitations
+❌ Don't change bottom nav selection - "Used" must remain selected on this page
+
+⚠️ **Critical**: The bottom navigation must preserve "Used" as the selected item when on the Used Cars page. Do not toggle or change this state.
+
+This section serves as a guide for the development team to organize code consistently with the project's existing patterns and the `used.doc` specification.

@@ -1,0 +1,709 @@
+# ALERTS FEATURE — COMPLETE IMPLEMENTATION DOCUMENTATION
+
+**Project:** `car_sales`\
+**Flutter package:** `car_sales_app` (folder `mobile_app`)\
+**Feature root:** `lib/features/bottom/alerts/`\
+**Framework:** Flutter and Dart (SDK `^3.12.2`, Flutter 3.44.8)\
+**Platform:** Android\
+**Market:** Ethiopia\
+**Scope:** The Alerts tab (notification feed with read/unread states, swipe-to-dismiss, clear-all, and an empty "All Caught Up" state)\
+**Purpose:** Act as the single source of truth for the Alerts feature. Inspect, repair, extend and verify the existing implementation without rebuilding working code.
+
+---
+
+# 1. PROJECT OBJECTIVE
+
+The Alerts feature provides a frontend-only notification feed for the car sales application. It must deliver:
+
+1. A tab with title "Notifications" in the bottom navigation (index 4).
+2. A header with the title and a "Clear all" text button (shown only when there are unread notifications).
+3. A vertically scrollable list of notifications, each with read/unread styling, an optional car thumbnail on the right, an optional action button, and tap-to-open behaviour.
+4. Swipe-to-dismiss on each notification (end-to-start).
+5. A "All Caught Up" empty state shown when there are no notifications.
+6. An automotive-themed illustration near the bottom of the empty state (bell + small car).
+7. A `NotificationsStore` that handles marking read, dismissing individual items, and clearing all.
+8. Mock notification data (`mock_notifications.dart`) that demonstrates all four notification types: `car`, `article`, `savedSearch`, and `general`.
+
+## 1.1 Core rules
+
+1. Inspect the existing project before editing anything.
+2. Preserve correct and useful code. The notification row widget, swipe-to-dismiss, and empty state illustration are well designed and should be kept.
+3. Repair broken code.
+4. Update incomplete components.
+5. Remove genuinely redundant code only after verifying it is safe to remove.
+6. Reuse existing models, assets, navigation, state management and services.
+7. Never duplicate the `AppNotification` model, the `NotificationsStore`, or the `mockNotifications` list.
+8. Preserve New Cars, Used Cars, Compare and News functionality.
+9. Use Ethiopian-market content and ETB prices where relevant.
+10. Do not claim an integration works unless it has been verified on a device or emulator.
+11. The Alerts feature is frontend-only. All data lives in `mock_notifications.dart`; when a real backend arrives, keep the `NotificationsStore` API (`items`, `unreadCount`, `markRead`, `dismiss`, `clearAll`) and swap the data source; the UI does not change (see the comment in `notifications_store.dart`).
+
+# 2. FEATURE SCOPE AND NON-GOALS
+
+## 2.1 In scope
+
+- `AlertsScreen` (lib/features/bottom/alerts/alerts.dart).
+- `NotificationsStore` (ChangeNotifier, singleton, lib/features/bottom/alerts/data/notifications_store.dart).
+- `AppNotification` model (lib/features/bottom/alerts/models/app_notification.dart) with type, title, description, timeAgo, read flag, carImage, actionLabel, targetArticleId, targetCarName.
+- `AppNotificationType` enum (car, article, savedSearch, general).
+- `_NotificationRow` widget — single notification row with read/unread styling, optional car thumbnail, optional action button, and tap-to-open.
+- `_EmptyState` widget — "All Caught Up" text + automotive illustration (`_AutomotiveEmptyIllustration`).
+- `_AutomotiveEmptyIllustration` — circular card with bell icon + small car icon.
+- Dismissible swipe-to-dismiss behaviour (Dismissible widget).
+- "Clear all" button shown in the header when `hasNotifications` is true.
+- `NotificationsStore.instance.unreadCount` for the bottom navigation badge.
+- Named routes: `AppRoutes.alerts` (`/alerts`) → `AlertsScreen`; `AppRoutes.carDetails` → `CarDetailsScreen`; `AppRoutes.newsArticle` → `ArticleDetailScreen`; `AppRoutes.carSearch` → `CarSearchScreen`; `AppRoutes.placeholder` → `PlaceholderScreen`.
+
+## 2.2 Out of scope (do not build in this feature)
+
+- A real backend or API. All data lives in `mock_notifications.dart`; the comment in `notifications_store.dart` explicitly says "frontend only".
+- Persisted notification preferences across app restarts. `NotificationsStore` is in-memory only (documented in section 22).
+- Actual push notifications from a server. The feature is a local notification feed only.
+- Deep linking to specific cars or articles beyond the hard-coded mock targets.
+- A second notification store or duplicate data models.
+- Video playback or live updates. The feature only shows static notification metadata.
+- Indian rupee prices or lakh notation. All prices in the mock data are in ETB or N/A.
+- Auto-mark-as-read on app foreground. The store only reacts to `markRead(id)` calls.
+
+# 3. FILE MAP AND RESPONSIBILITIES
+
+| File | Responsibility |
+| ---- | -------------- |
+| `lib/features/bottom/alerts/alerts.dart` | `AlertsScreen` — tab page, header, notification list, empty state, clear-all action |
+| `lib/features/bottom/alerts/data/notifications_store.dart` | `NotificationsStore` — ChangeNotifier singleton, in-memory store, markRead/dismiss/clearAll, test reset |
+| `lib/features/bottom/alerts/models/app_notification.dart` | `AppNotification` model + `AppNotificationType` enum + `copyWith` |
+| `lib/features/bottom/alerts/data/mock_notifications.dart` | `mockNotifications` — constant list of 8 sample notifications (all 4 types) |
+| `lib/shared/widgets/page_top_bar.dart` | `PageTopBar` — shared top bar with title + trailing actions (reused by Alerts and News) |
+| `lib/shared/common/car_details/car_details_screen.dart` | `CarDetailsScreen` — opened from `AppNotificationType.car` taps |
+| `lib/features/bottom/news/article_detail_screen.dart` | `ArticleDetailScreen` — opened from `AppNotificationType.article` taps |
+| `lib/features/bottom/new/car_search_screen.dart` | `CarSearchScreen` — opened from `AppNotificationType.savedSearch` taps |
+| `lib/navigation/app_routes.dart` | Maps `AppRoutes.alerts` (`/alerts`) to `AlertsScreen`; other routes for notification tap targets |
+| `lib/navigation/app_routes.dart` | Route name constants |
+| `lib/navigation/bottom_nav_bar.dart` | Five-item bottom navigation, "Alerts" at index 4; uses `AppIcons.alerts` and `Badge` for unread count |
+| `lib/core/constants/app_colors.dart` | `AppColors.primary`, `AppColors.teal`, `AppColors.red`, etc. — colour tokens |
+| `lib/core/constants/app_dimens.dart` | `AppDimens` — spacing and radius tokens |
+| `lib/core/constants/app_icons.dart` | `AppIcons` — Lucide icons; `AppIcons.news`, `AppIcons.notification`, etc. |
+
+## 3.1 Shared code rules
+
+- `PageTopBar` is shared. Do not copy it.
+- `AppIcons.news`, `AppIcons.notification` are the only icon needs (plus generic Material icons like `Icons.delete_outline` which are used directly).
+- `NotificationsStore.instance` is the single source of truth for notification state. Both `AlertsScreen` and the bottom navigation badge read from it.
+- All colour tokens come from `AppColors`. Do not hardcode hex values.
+- All dimension tokens come from `AppDimens`. Do not use raw numbers.
+- The `Dismissible` direction is always `endToStart`; the background is always a red container with a delete icon.
+
+# 4. SCREEN FLOW AND NAVIGATION MAP
+
+```
+Bottom navigation (index 4, "Alerts")
+        |
+        v
+AlertsScreen  (lib/features/bottom/alerts/alerts.dart)
+  |
+  |--- header: "Notifications" + "Clear all" (visible only when hasNotifications)
+  |    |--- Clear all ---> clearAll() → pops all notifications + notifyListeners
+  |
+  |--- notification list (_buildNotificationList)
+  |     |--- each row: _NotificationRow(notification)
+  |     |--- swipe-to-dismiss (Dismissible end-to-start)
+  |     |--- background: red container with Icons.delete_outline
+  |     |--- onDismissed: store.dismiss(notification.id)
+  |
+  |--- tap a notification -----> _handleTap(context)
+  |     |--- type switch: car → CarDetailsScreen(car) / not found → PlaceholderScreen
+  |     |--- type: article → ArticleDetailScreen(article) / not found → PlaceholderScreen
+  |     |--- type: savedSearch → CarSearchScreen() 
+  |     |--- type: general → PlaceholderScreen(title: 'Notice', subtitle: 'More details coming soon.')
+  |
+  |--- "All Caught Up" empty state when store.items is empty
+  |    |--- illustration: _AutomotiveEmptyIllustration (bell + small car)
+  |    |--- text: "All Caught Up" + "You have seen all notifications"
+  |
+  |--- bottom navigation badge: Badge(isLabelVisible: unread > 0, label: Text('$unread'))
+```
+
+Rules:
+
+- Swiping a notification left dismisses it from the store; the list rebuilds automatically via `ListenableBuilder(listenable: NotificationsStore.instance, ...)`.
+- "Clear all" dismisses every notification and shows the empty state.
+- Tapping a notification marks it read (`store.markRead(notification.id)`) and then navigates to the appropriate detail screen.
+- Navigation targets are hard-coded per type; there is no generic "open URL" behaviour.
+- The bottom navigation badge (`Badge` widget) shows the unread count; it is part of `BottomNavBar`, not the Alerts screen itself.
+
+# 5. COMPLETE PAGE STRUCTURE
+
+The Alerts tab is a single vertical scroll (ListView inside a ColoredBox) with these blocks in this exact order:
+
+1. Header (`_buildHeader(store)`) — `PageTopBar` with title "Notifications", trailing "Clear all" button (conditional).
+2. Notification list (`_buildNotificationList(store)`) — `ListView.separated` with `Dismissible` wrappers.
+3. Empty state (`_EmptyState`) — shown when `store.hasNotifications` is false.
+
+Do not split these blocks into separate screens. The page is one scrollable surface inside the bottom tab.
+
+# 6. GLOBAL VISUAL DESIGN
+
+## 6.1 Colors
+
+Use the existing theme constants from `lib/core/constants/app_colors.dart`. Do not hardcode new hex values in the feature.
+
+| Token | Value | Usage in Alerts |
+| ----- | ----- | -------------- |
+| `AppColors.background` | `#FFFFFF` | Not used directly; alerts use `AppColors.surface`. |
+| `AppColors.surface` | `#FAFAFA` | Background of the entire Alerts screen; card fill for notification rows. |
+| `AppColors.divider` | `#E0E0E0` | 1px divider between notification rows; also used in skeletons. |
+| `AppColors.textPrimary` | `#1A1A2E` | Unread notification titles, "All Caught Up" title. |
+| `AppColors.textSecondary` | `#6B6B6B` | Read notification titles, time ago labels, metadata. |
+| `AppColors.textDisabled` | `#BDBDBD` | Disabled/icon state for read notifications. |
+| `AppColors.teal` | `#0F8F83` | Icon colour for `car` type notifications; selected state pill. |
+| `AppColors.primary` | `#1B5E20` | Icon colour for `article` type notifications; "Clear all" text colour; used as accent. |
+| `Color(0xFFF0F1F4)` | pale gray | Background for read notification rows. |
+| `Color(0xFFE9F1FB)` | pale blue | Background of the empty-state illustration circle. |
+| `Color(0xFF8D6E63)` | rose | Icon colour for `general` type notifications. |
+| `Color(0xFFD97706)` | amber | Secondary accent; used in the "Clear all" button foreground when present. |
+
+## 6.2 Typography
+
+All text uses `Theme.of(context).textTheme` with `FontWeight.w400` unless a heavier weight is explicitly needed.
+
+| Element | Text style | Notes |
+| ------- | ---------- | ----- |
+| Top bar title | `titleMedium` | "Notifications" |
+| "Clear all" button | bodyMedium or labelMedium, weight w400, foreground `AppColors.primary` | Underlined text style from `TextButton.styleFrom`. |
+| Unread notification title | `titleSmall`, weight w400, height 1.25, colour `AppColors.textPrimary` | |
+| Read notification title | `titleSmall`, weight w400, height 1.25, colour `AppColors.textSecondary` | |
+| Time ago label | `labelSmall`, colour `AppColors.textDisabled` | e.g., "2 minutes ago". |
+| "All Caught Up" title | `titleLarge`, weight w400, colour `AppColors.textPrimary` | |
+| "You have seen all notifications" | `bodyMedium`, colour `AppColors.textSecondary` | |
+| Unread indicator dot | small circle, `AppColors.primary` (8px diameter) | Shown only on unread rows, right-aligned. |
+
+## 6.3 Spacing and radii
+
+Use `AppDimens` only.
+
+- Spacing: `xs 4`, `sm 8`, `md 12`, `lg 16`, `xl 24`, `xxl 32`.
+- Radii: `radiusSm 8`, `radiusMd 12`, `radiusLg 20`.
+- Header padding: `EdgeInsets.symmetric(horizontal: AppDimens.lg, vertical: AppDimens.sm)` inside `PageTopBar`.
+- Notification row padding: `EdgeInsets.all(AppDimens.lg)`.
+- Row children spacing: `const SizedBox(width: AppDimens.md)` between icon container and text column; `const SizedBox(height: AppDimens.lg)` between metadata and action button; `const SizedBox(width: AppDimens.md)` between text column and car image.
+- Car image box: width 60, height 52, `radiusSm 6`, `BoxFit.cover`.
+- Empty state illustration height: 172 (circular card).
+- Tooltip/message: not used in Alerts; the "Clear all" is a text button, not a tooltip.
+- Divider height between rows: 1px, colour `AppColors.divider`.
+
+## 6.4 Icons and images
+
+- Icons come from `AppIcons` (`lucide_icons_flutter`) or directly from `MaterialIcons` for actions (`Icons.delete_outline`, `Icons.arrow_back` etc. via the routes).
+- Notification type icons are determined per `AppNotificationType`:
+  - `car` → `Icons.directions_car_outlined` (size 22).
+  - `article` → `AppIcons.news` (size 22).
+  - `savedSearch` → `Icons.search` (size 22).
+  - `general` → `AppIcons.notification` (size 22).
+- Car thumbnails load from `assets/images/` via `Image.asset` with error fallback to a pale gray `ColoredBox`.
+- The empty-state illustration uses a circular card with `Color(0xFFE9F1FB)` fill, a large `Icons.notifications_none_rounded` bell, and a small `Icons.directions_car` car.
+
+# 7. TOP BAR AND HEADER ACTIONS
+
+The Alerts screen header uses `PageTopBar`:
+
+```dart
+PageTopBar(
+  title: 'Notifications',
+  trailing: [
+    if (store.hasNotifications)
+      TextButton(
+        onPressed: clearAll,
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+        child: const Text(
+          'Clear all',
+          style: TextStyle(fontWeight: FontWeight.w400),
+        ),
+      ),
+  ],
+)
+```
+
+- `PageTopBar` is a shared widget (`lib/shared/widgets/page_top_bar.dart`). It renders a `Container` with surface fill, a 1px divider bottom, and a `Column` with the title and a `Row` of trailing widgets.
+- The "Clear all" button only appears when `store.hasNotifications` is true.
+- `TextButton.styleFrom` sets the foreground colour to `AppColors.primary` (`#1B5E20`) and horizontal padding 8.
+- The child `Text` uses `fontWeight: FontWeight.w400`.
+
+# 8. NOTIFICATION ROW
+
+`_NotificationRow` is the core browsing widget for the notification list.
+
+## 8.1 Structure
+
+- `InkWell` wrapper (for tap-to-open behaviour).
+- `Container` with conditional colour:
+  - Unread: `Color(0xFFF7FAFF)` (very pale blue).
+  - Read: `AppColors.surface` (`#FAFAFA`).
+- `padding: EdgeInsets.all(AppDimens.lg)`.
+- `Row` with cross-axis `center`, children:
+  1. **Icon container** (width 44, height 44, circular decoration):
+     - Background colour: unread → `iconColor.withValues(alpha: 0.14)` (type-specific teal/primary/success/rose), read → `Color(0xFFF0F1F4)`.
+     - Shape: `BoxShape.circle`.
+     - Child: `Icon` with size 22, colour: unread → `iconColor` (type-specific), read → `AppColors.textDisabled`.
+  2. **SizedBox width 8** (only when unread, to push the dot over).
+  3. **Unread indicator dot** (8x8 circle, `AppColors.primary`, only shown when `_unread`):
+     - Positioned right-aligned at the top of the icon container.
+  4. **Expanded text column**:
+     - **Title** (`notification.title`), `titleSmall`, max 2 lines, ellipsis.
+       - Unread: `AppColors.textPrimary`, height 1.25, weight w400.
+       - Read: `AppColors.textSecondary`, height 1.25, weight w400.
+     - **Description** (`notification.description`), `bodySmall`, max 2 lines, ellipsis, height 1.35, colour `AppColors.textSecondary` (unread) or `AppColors.textDisabled` (read).
+     - **Time ago** (`notification.timeAgo`), `labelSmall`, colour `AppColors.textDisabled`.
+     - **Action row** (if `notification.actionLabel != nil`):
+       - Spacer to push to the right.
+       - `TextButton` with `foregroundColor: AppColors.primary`, small padding, minimumSize `(0, 32)`, child `Text` size 12, weight w400, label `notification.actionLabel`.
+  5. **Car image** (optional, `notification.carImage != nil`):
+     - Width 60, height 52, `radiusSm 6`, `BoxFit.cover`, error fallback to `Color(0xFFEEF1F4)` with `Icons.image_not_supported_outlined` 20px.
+
+## 8.2 Interaction
+
+- Whole row is `InkWell`; tapping calls `_handleTap(context)`.
+- `_handleTap` first marks the notification read (`store.markRead(notification.id)`), then navigates based on `notification.type`:
+  - `car`: searches `allCars` (from `filter_results.dart`) by `targetCarName`, pushes `CarDetailsScreen(car)` if found, else `PlaceholderScreen`.
+  - `article`: searches `MockNewsRepository.articles` by `targetArticleId`, pushes `ArticleDetailScreen(article)` if found, else `PlaceholderScreen`.
+  - `savedSearch`: pushes `CarSearchScreen()`.
+  - `general`: pushes `PlaceholderScreen(title: 'Notice', subtitle: 'More details are coming soon.)`.
+- Swipe-to-dismiss: `Dismissible` with `direction: DismissDirection.endToStart`, `onDismissed: (_) => store.dismiss(notification.id)`. The background is a red container with `Icons.delete_outline` white, aligned centre-right, padded `AppDimens.xl`.
+
+# 9. EMPTY STATE
+
+`_EmptyState` — shown when `store.items.isEmpty`.
+
+- `Column` with:
+  - `SizedBox(height: 72)`.
+  - `"All Caught Up"` text, `titleLarge`, weight w400, colour `AppColors.textPrimary`.
+  - `SizedBox(height: 6)`.
+  - `"You have seen all notifications"` text, `bodyMedium`, colour `AppColors.textSecondary`.
+  - `Expanded(child: SizedBox.shrink())` — pushes illustration to the bottom.
+  - `_AutomotiveEmptyIllustration()` — 172px circular card.
+  - `SizedBox(height: 32)`.
+
+## 9.1 `_AutomotiveEmptyIllustration`
+
+- `Container` with:
+  - Width 172, height 172, `BoxDecoration` colour `Color(0xFFE9F1FB)`, `BoxShape.circle`.
+  - `Stack` with `Alignment.center`:
+    - Large `Icon(Icons.notifications_none_rounded, size: 80, color: AppColors.primaryLight)`.
+    - `Positioned(right: 8, bottom: 8, child: Container`:
+      - Width 44, height 44, `BoxDecoration` colour `AppColors.surface`, `BoxShape.circle`, `border: Border.all(color: AppColors.divider)`.
+      - Child: `Icon(Icons.directions_car, size: 22, color: AppColors.teal)`.
+
+# 10. DATA LAYER
+
+## 10.1 The `AppNotification` model
+
+```dart
+enum AppNotificationType { car, article, savedSearch, general }
+
+class AppNotification {
+  const AppNotification({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.description,
+    required this.timeAgo,
+    this.read = false,
+    this.carImage,
+    this.actionLabel,
+    this.targetArticleId,
+    this.targetCarName,
+  });
+
+  final String id;
+  final AppNotificationType type;
+  final String title;
+  final String description;
+  final String timeAgo;
+  final bool read;
+
+  /// Optional vehicle thumbnail shown on the right side of the row.
+  final String? carImage;
+
+  /// Optional action button label shown on the row.
+  final String? actionLabel;
+
+  /// Navigation target: news article id.
+  final String? targetArticleId;
+
+  /// Navigation target: used-car listing name (see Car catalogue).
+  final String? targetCarName;
+
+  AppNotification copyWith({bool? read}) => AppNotification(
+    id: id,
+    type: type,
+    title: title,
+    description: description,
+    timeAgo: timeAgo,
+    read: read ?? this.read,
+    carImage: carImage,
+    actionLabel: actionLabel,
+    targetArticleId: targetArticleId,
+    targetCarName: targetCarName,
+  );
+}
+```
+
+Rules:
+
+- `read` defaults to `false`. Once set to `true`, the UI shows the read styling (different title colour, different background, no dot).
+- `copyWith` is used by `NotificationsStore.markRead` to update a single notification without mutating the whole list structure.
+- The model has no fields for read/timestamps beyond what's listed; any additional state must live in `NotificationsStore`.
+
+## 10.2 The `NotificationsStore`
+
+```dart
+class NotificationsStore extends ChangeNotifier {
+  static final NotificationsStore instance = NotificationsStore._();
+  List<AppNotification> _items = List<AppNotification>.of(mockNotifications);
+
+  List<AppNotification> get items => List<AppNotification>.unmodifiable(_items);
+  bool get hasNotifications => _items.isNotEmpty;
+  int get unreadCount => _items.where((n) => !n.read).length;
+
+  void markRead(String id) { ... } // marks one notification read, notifyListeners()
+  void dismiss(String id) { ... } // removes one notification, notifyListeners()
+  void clearAll() { ... } // removes all, notifyListeners()
+
+  /// Test-only hook to reset the singleton between sessions.
+  @visibleForTesting
+  void reset() {
+    _items = List<AppNotification>.of(mockNotifications);
+    notifyListeners();
+  }
+}
+```
+
+Rules:
+
+- `items` is an `List<AppNotification>.unmodifiable` view; the internal `_items` list is mutated only via `markRead`, `dismiss`, `clearAll`.
+- `unreadCount` is a derived property; the bottom navigation badge rebuilds when this changes.
+- `markRead` iterates `_items`, finds the matching id that is not yet read, flips its `read` flag via `copyWith`, and calls `notifyListeners()`.
+- `dismiss` filters `_items` to remove the matching id, and calls `notifyListeners()` only if the length changed.
+- `clearAll` replaces `_items` with an empty list and calls `notifyListeners()` only if the list was non-empty.
+- `reset` is a test-only hook; it restores the original `mockNotifications` list. It is annotated `@visibleForTesting`.
+
+# 11. STATE MANAGEMENT AND CACHING
+
+- No third-party state package. The feature uses `ChangeNotifier` for `NotificationsStore` plus `ListenableBuilder` in the UI.
+- `NotificationsStore.instance` is a singleton; all widgets read from it via `ListenableBuilder(listenable: NotificationsStore.instance, ...)`.
+- The store is session-scoped: notifications are lost when the app restarts. This is a documented limitation (see section 22).
+- `AlertsScreen` uses `ListenableBuilder` to rebuild only when `NotificationsStore.instance` changes.
+- Swipe-to-dismiss and "Clear all" both call `notifyListeners()` so the list reflects the new state immediately.
+- The bottom navigation badge (`Badge` in `BottomNavBar`) reads `NotificationsStore.instance.unreadCount` and shows/hides the label based on whether the count > 0.
+
+# 12. ROUTES AND NAVIGATION
+
+| Route constant | Path | Target |
+| --------------- | ---- | ------ |
+| `AppRoutes.alerts` | `/alerts` | `AlertsScreen` (registered in `AppRouter.routes()`) |
+| `AppRoutes.carDetails` | (used internally) | `CarDetailsScreen(car: car)` — opened from `AppNotificationType.car` taps |
+| `AppRoutes.newsArticle` | (used internally) | `ArticleDetailScreen(article: article)` — opened from `AppNotificationType.article` taps |
+| `AppRoutes.carSearch` | (used internally) | `CarSearchScreen()` — opened from `AppNotificationType.savedSearch` taps |
+| `AppRoutes.placeholder` | (used internally) | `PlaceholderScreen(title: '...', subtitle: '...')` — fallback for not-found targets |
+
+- Bottom navigation order: New, Used, Compare, News, Alerts. Alerts is index 4 and uses `AppIcons.alerts` (`LucideIcons.bell`).
+- The selected bottom navigation item is `AppColors.primary` (`#1B5E20`); unselected items are `Colors.grey[700]`.
+- The Compare tab has its own "VS" badge; the Alerts tab has a `Badge` for unread count only.
+
+# 13. LOADING, EMPTY AND ERROR STATES
+
+Every asynchronous block in this feature has loading states handled by the scaffold structure (there is no separate "loading" widget because the data is static mock data that appears immediately).
+
+| Location | Loading | Error | Empty |
+| -------- | ------- | ----- | ----- |
+| Notification list | n/a (mock data appears immediately) | n/a | `_EmptyState()` — "All Caught Up" + illustration |
+| Bottom navigation badge | n/a | n/a | hidden when `unreadCount == 0` |
+
+Rules:
+
+- Since the data is static (`mockNotifications`), there is no "loading" state; the notifications appear as soon as the widget builds.
+- The only empty state is the "All Caught Up" illustration + text, shown when `store.items.isEmpty`.
+- There is no error state because the mock data is hard-coded and never fails. If a real backend is added later, an error state would need to be implemented.
+
+# 14. KNOWN ISSUES AND DEFECTS
+
+`flutter analyze` currently reports errors across the project. **Alerts-specific issues** (verified against the code):
+
+## 14.1 P0 — the feature does not compile
+
+| ID | File | Problem | Required fix |
+| -- | ---- | ------- | ------------ |
+| P0-1 | `lib/core/constants/app_icons.dart` | `AppIcons.alerts` is used but may not exist as a `static const IconData` in `lucide_icons_flutter` 4.0.1 | Verify the icon constant against the lucide package; add a valid Lucide name (e.g., `bell` → `LucideIcons.bell` if it exists, or add the missing getter). All other features use `AppIcons.bell`-style names; confirm this one is consistent. |
+| P0-2 | `lib/core/constants/app_icons.dart` | Same P0-1 issue propagated: `AppIcons.notification` used in `_NotificationRow` and `_AutomotiveEmptyIllustration` | Verify and fix alongside P0-1; the fix is usually to add the missing `static const IconData` field. |
+| P0-3 | `lib/core/constants/app_icons.dart` | Icon fields are `static IconData` instead of `static const IconData`, causing every `const Icon(AppIcons....)` to fail with `const_with_non_constant_argument` | Change all icon fields to `static const IconData` (one fix fixes all features). This is the highest-priority P0 fix. |
+
+## 14.2 P1 — correctness and data integrity
+
+| ID | Location | Problem | Required fix |
+| -- | -------- | ------- | ------------ |
+| P1-1 | `alerts.dart`, `_NotificationRow` | The `_unread` getter uses `!notification.read` but the `read` field defaults to `false`; the logic is correct but the `read` field on `AppNotification n5` and `n7` in `mock_notifications.dart` are set to `true` explicitly. Ensure the UI correctly shows the dot and colour switch based on this. | The logic is already correct; no code change needed. Document that `n5` and `n7` are "read" in the mock data. |
+| P1-2 | `alerts.dart`, `_buildHeader` | The "Clear all" button only appears when `store.hasNotifications` is true. If the user clears all and then adds new notifications (not possible with mock data but possible with a backend), the button should re-appear. | The code already handles this via `ListenableBuilder` rebuild; no change needed. |
+| P1-3 | `alerts.dart`, `_handleTap` | When a `car` type notification's `targetCarName` does not match any car in the `allCars` catalogue, the fallback is `PlaceholderScreen`. The search logic uses `c.name.toLowerCase().contains(notification.targetCarName!.toLowerCase())`. With the current 4-car catalogue, some target names may not match. | Verify the mock `targetCarName` values against the `allCars` list; if they don't match, the PlaceholderScreen behaviour is acceptable as a frontend-only placeholder. |
+| P1-4 | `notifications_store.dart` | `markRead`, `dismiss`, `clearAll` all call `notifyListeners()`. If a user performs rapid actions (e.g., swipe two notifications quickly), the UI may flash. | Not a blocker for the mock; if a real backend is added, consider debouncing or batching `notifyListeners()` calls. |
+| P1-5 | `alerts.dart` | The notification row's car image uses a hard-coded error fallback colour `Color(0xFFEEF1F4)`. This colour should ideally come from `AppColors` but is a literal. | Change to `AppColors.divider.lighten()` or document as a P2 cleanup item. |
+
+## 14.3 P2 — cleanup and future work
+
+| ID | Location | Problem | Action |
+| -- | -------- | ------- | ------ |
+| P2-1 | `alerts.dart`, `_NotificationRow` | The car image width/height (60×52) and radius (radiusSm 6) are literals, not `AppDimens` tokens. | Change to `AppDimens.radiusSm` and appropriate `AppDimens` values; or document as visual-QA item. |
+| P2-2 | `notifications_store.dart` | `reset()` is a test-only public method; it could be misused. | Keep it as `@visibleForTesting`; consider moving it to a test file or prefixing with `_` if the team prefers. |
+| P2-3 | `mock_notifications.dart` | The `targetCarName` values (`BMW 7 Series 2025`, `BMW 5 Series 2025`, `Porsche Panamera 2025`, `BYD Sealion 7 2025`) exist in the shared `newCars` catalogue, but the search logic in `_handleTap` uses `c.name.contains()`. Verify the match succeeds. | The match should succeed because the names contain the target strings; this is fine for the mock. |
+| P2-4 | `alerts.dart` | The "Clear all" button uses `TextButton` with `foregroundColor: AppColors.primary`. On some Material versions, the underline may not appear. | Test on device; if the underline is missing, add `style: ButtonStyle(overlayColor: ...)` or document the visual behaviour. |
+| P2-5 | `alerts.dart` | The empty state illustration uses `Icons.notifications_none_rounded` and `Icons.directions_car` which are Material icons, not Lucide. Ensure the project allows mixing Material icons in this way (the `app_icons.dart` file only defines Lucide icons, but raw Material icons are used directly elsewhere). | No code change needed; this is an accepted project pattern. |
+| P2-6 | `notifications_store.dart` | The store is in-memory only; favourites/notifications are lost on app restart. | Document in section 22; this is a known limitation, not a bug. |
+
+## 14.4 Non-Alerts errors that must not be confused with Alerts errors
+
+`new_impl.dart` (56), `compare_catalogue.dart` (7), `select_car.dart` (7), `compare.dart` (5), `used.dart` (4), `news_search_screen.dart` (1), `search.dart` (3), `bottom_nav_bar.dart` (3), `article_detail_screen.dart` (4), `video_details_screen.dart` (2), `compare_details.dart` (2) and many others also fail to compile. Fix them separately and report them separately. The Alerts feature must not be blamed for them, and Alerts work must not silently rewrite them.
+
+# 15. EXISTING CODE REVIEW AND SAFE MODIFICATION
+
+The Alerts feature is largely written and the structure is good. Do not assume the code is wrong — inspect it first.
+
+For each component:
+
+- **Correct and useful:** keep it. The notification row with swipe-to-dismiss, the empty state illustration, the store API, and the type-based navigation all follow the intended design.
+- **Mostly correct:** update only what is needed. The filter pill colours and the `const` icon issue are the main candidates.
+- **Broken:** repair it. The missing `AppIcons` constants and the `const` field issue are broken.
+- **Incomplete:** extend it. The `AppDimens` usage for car image dimensions and the rapid-action debounce are incomplete.
+- **Duplicated:** keep the best implementation and remove the rest once it is safe. `PageTopBar` is shared; no duplication in Alerts.
+- **Unused:** remove only after confirming it is unnecessary.
+- **Unclear:** investigate before changing or deleting it.
+
+Before each implementation task:
+
+1. Inspect the relevant files and dependencies.
+2. Identify what must be preserved, fixed, updated or removed.
+3. Report the intended file changes.
+4. Make focused changes.
+5. Verify with `flutter analyze` and `flutter test`.
+
+Rules:
+
+- Do not delete whole files or rebuild the feature from scratch.
+- Do not create a second notification store or a second data model.
+- Do not add a state-management package, a networking package or a database for this feature without an explicit decision.
+- Keep every unrelated feature working: New Cars, Used Cars, Compare and News.
+- Keep prices in ETB and content relevant to the Ethiopian market.
+- Distinguish pre-existing errors from new errors in the report.
+
+# 16. INCREMENTAL IMPLEMENTATION PLAN
+
+Implement and verify the feature in this order. Do not attempt every stage in one operation.
+
+1. **Stage 1 — make it compile.** Add the missing `AppIcons` constants and make the icon fields `static const IconData`. Fix P0-1, P0-2, P0-3 (the three icon-related defects). Re-run `flutter analyze` and confirm the Alerts errors are gone.
+2. **Stage 2 — verify the favourite/reveal logic.** Ensure the unread dot and colour switching work correctly based on the `read` field in mock data. Verify the "Clear all" button appears/disappears correctly.
+3. **Stage 3 — wire the notification taps.** Confirm that each notification type (car, article, savedSearch, general) navigates to the correct screen with the correct model. Verify the fallback to `PlaceholderScreen` works when a target is not found.
+4. **Stage 4 — harden the empty state.** Ensure `_EmptyState()` and `_AutomotiveEmptyIllustration()` render correctly on an Android device or emulator. Verify the illustration appears below the text with the correct spacing.
+5. **Stage 5 — polish the interactions.** Add `AppDimens` tokens for the car image dimensions if desired, and test rapid swipe actions to ensure no UI errors.
+6. **Stage 6 — verify on device.** Run the app on an Android device or emulator and walk through the full flow: tab switching, notification list appearance, swipe-to-dismiss, "Clear all", tap navigation, empty state.
+7. **Stage 7 — final verification.** Run `flutter analyze` with zero errors in the Alerts feature, run `flutter test`, and check the acceptance checklist.
+
+# 17. TESTING AND ACCEPTANCE CHECKLIST
+
+## Layout
+
+- The tab bar shows "Alerts" at the bottom, with a badge showing the unread count (if any).
+- The Alerts screen header shows "Notifications" and a "Clear all" button when there are notifications.
+- The notification list shows rows with read/unread styling: unread rows have a pale blue background (`#F7FAFF`) and a primary-coloured dot; read rows have a surface background (`#FAFAFA`) and disabled text colour.
+- Each row has an icon on the left (car/news/search/bell, colour-coded by type), a title, description, and time ago.
+- Unread rows show a right-aligned 8px primary-coloured dot; read rows do not.
+- If a notification has a car image, it appears on the far right (60×52, rounded corners).
+- When there are no notifications, the "All Caught Up" empty state appears with the automotive illustration (bell + small car in a pale blue circle).
+- The "Clear all" button is hidden when there are no notifications.
+
+## Functionality
+
+- Swiping a notification left dismisses it from the list and updates the unread count badge.
+- Tapping a notification marks it read and navigates to the correct detail screen:
+  - `car` type → `CarDetailsScreen` (if the car is found in the catalogue) or `PlaceholderScreen`.
+  - `article` type → `ArticleDetailScreen` (if the article ID matches) or `PlaceholderScreen`.
+  - `savedSearch` type → `CarSearchScreen`.
+  - `general` type → `PlaceholderScreen` with title "Notice" and subtitle "More details are coming soon."
+- "Clear all" dismisses all notifications and shows the "All Caught Up" empty state.
+- The bottom navigation badge updates its number when notifications are dismissed or cleared.
+
+## Data integrity
+
+- The unread count badge always matches the number of notifications with `read == false`.
+- Category icon colours are correct: car = teal, article = primary, savedSearch = search, general = rose (`#8D6E63`).
+- The "All Caught Up" illustration renders with the bell centred and the small car in the lower-right quadrant.
+- The "Clear all" button is visible exactly when `hasNotifications` is true and hidden when false.
+
+## Quality
+
+- `flutter analyze` reports no errors in the Alerts feature (after Stage 1 fixes).
+- `flutter test` passes, including any store reset or mock data tests.
+- The feature works with the shared `NotificationsStore` and `mockNotifications`, without a second database.
+- No unrelated feature was modified or broken.
+- All remaining limitations (session-only store, no error states for real backends, `AppDimens` usage for car images) are documented in the report.
+
+# 19. FOLDER STRUCTURE RECOMMENDATION
+
+## Recommended Directory Layout for Alerts Feature
+
+```
+lib/features/bottom/alerts/
+├── alerts.dart                     # AlertsScreen (tab page) - public API
+├── alerts_impl.dart                # Internal implementation (primary development file)
+│   ├── widgets/                    # Reusable widgets specific to Alerts
+│   │   ├── _AlertsScreen.dart      # AlertsScreen - header, notification list, empty state
+│   │   ├── _NotificationRow.dart   # _NotificationRow - single notification row with swipe-to-dismiss
+│   │   ├── _EmptyState.dart        # _EmptyState - "All Caught Up" text + illustration
+│   │   ├── _AutomotiveEmptyIllustration.dart # Circular card with bell + small car
+│   │   ├── _Header.dart            # Header with title + "Clear all" button
+│   │   └── _BottomNavBadge.dart    # Badge showing unread count in bottom nav
+│   ├── models/                     # Domain models (single source)
+│   │   └── app_notification.dart   # AppNotification model + AppNotificationType enum
+│   ├── data/                       # Data layer (single source)
+│   │   ├── notifications_store.dart # NotificationsStore - ChangeNotifier singleton
+│   │   └── mock_notifications.dart # mockNotifications - constant list of 8 sample notifications
+│   └── alerts_cars_page.dart      # The main page widget assembling all sections
+├── services/                       # API/services (if needed - none for mock data)
+│   └── alerts_service.dart
+└── docs/                           # Local documentation
+    └── alerts_implementation.md
+
+## Key Reuse Patterns (per alerts.doc)
+
+### 1. AppNotification Model (SINGLE SOURCE)
+- **Reuse**: `lib/features/bottom/alerts/models/app_notification.dart`'s `AppNotification` model + `AppNotificationType` enum
+- **Critical**: Do NOT create a second `AppNotification` model or second enum
+- **Types**: `AppNotificationType` has four values: `car`, `article`, `savedSearch`, `general`
+- **Structure**: Each notification has `type`, `title`, `description`, `timeAgo`, `read` flag, `carImage`, `actionLabel`, `targetArticleId`, `targetCarName`
+- **Critical**: Do NOT create a second notification model or extend the enum with new types without documentation
+
+### 2. Notifications Store (SINGLE INSTANCE)
+- **Reuse**: `lib/features/bottom/alerts/data/notifications_store.dart`'s `NotificationsStore.instance`
+- **CRITICAL**: Do NOT create a second notifications store
+- **API**: `items`, `unreadCount`, `markRead(id)`, `dismiss(id)`, `clearAll()`
+- **Session-scoped**: Documented limitation - lost on app restart (section 18, P2-6)
+- **All widgets** must read from `NotificationsStore.instance` only - no inline data lists
+
+### 3. Mock Notifications Data (SINGLE LIST)
+- **Reuse**: `lib/features/bottom/alerts/data/mock_notifications.dart`'s `mockNotifications` constant list
+- **CRITICAL**: Do NOT create a second mock data list or second data source
+- **8 sample notifications**: Demonstrates all 4 notification types
+- **Critical fields**: `targetCarName` values must match the shared `allCars` catalogue for `car` type
+- **Default values**: `read` field defaults to `false`; `n5` and `n7` explicitly set to `true`
+
+### 4. Shared Widgets (DO NOT duplicate)
+| Widget | Location | Usage |
+|--------|----------|-------|
+| `_NotificationRow` | `lib/features/bottom/alerts/widgets/_NotificationRow.dart` | Single notification row with read/unread styling, swipe-to-dismiss |
+| `_EmptyState` | `lib/features/bottom/alerts/widgets/_EmptyState.dart` | "All Caught Up" text + automotive illustration |
+| `_AutomotiveEmptyIllustration` | `lib/features/bottom/alerts/widgets/_AutomotiveEmptyIllustration.dart` | Circular card with bell icon + small car icon |
+| `_Header` | `lib/features/bottom/alerts/widgets/_Header.dart` | Header with title + "Clear all" button |
+| `PageTopBar` | `lib/shared/widgets/page_top_bar.dart` | Shared top bar with title + trailing actions (reused by News) |
+| `AppNotification` model | `lib/features/bottom/alerts/models/app_notification.dart` | Notification structure + type, title, description, timeAgo, read flag |
+| `NotificationsStore` | `lib/features/bottom/alerts/data/notifications_store.dart` | ChangeNotifier singleton, in-memory store |
+
+### 5. Bottom Navigation Integration
+- **Reuse**: Existing 5-item bottom nav (New, Used, Compare, News, **Alerts**)
+- **Alerts at index 4**: Uses `AppIcons.alerts` (`LucideIcons.bell`-style) + `Badge` for unread count
+- **Do NOT**: Add second navigation bar inside Alerts page
+- **Unread badge**: `NotificationsStore.instance.unreadCount` updates the badge number
+- **Shell ownership**: The navigation shell owns the bottom nav; Alerts tab lives inside PageView
+
+### 6. Color & Theme Integration
+- **Reuse**: Existing `app_colors.dart` palette
+- **Teal**: `#0F8F83` for unread dot, selected states
+- **Primary**: `#1B5E20` for main color (Ethiopian flag green)
+- **Surface**: `#FAFAFA` for read notification rows, header background
+- **Divider**: `#E0E0E0` for dividers between rows
+- **Red**: `#FF0000` for notification dot (unread) and "Clear all" button styling
+- **Rose**: `#8D6E63` for general notification type colour
+- **Pale blue**: `#F7FAFF` for unread notification row background
+- **Text Primary**: `#1A1A2E` for titles, description text
+- **Text Secondary**: `#6B6B6B` for time ago, metadata
+
+### 7. Swipe-to-Dismiss Configuration
+- **Reuse**: `Dismissible` widget with `direction: DismissDirection.endToStart`
+- **Background**: Always a red container with a delete icon
+- **ConfirmDismiss**: Should show a SnackBar asking "Are you sure you want to dismiss this notification?"
+- **Do NOT**: Implement custom swipe behaviour - use the shared Dismissible pattern
+
+### 8. Category Icon Colours
+- **car**: Teal (`#0F8F83`)
+- **article**: Primary (`#1B5E20`)
+- **savedSearch**: Search icon colour (typically secondary or teal)
+- **general**: Rose (`#8D6E63`)
+- **Critical**: Use the consistent colour mapping - do not hardcode different values
+
+### 9. Error States & Loading
+- **Reuse**: Skeleton pattern from the feature (no separate skeleton widget needed for mock data)
+- **Empty state**: `_EmptyState()` + `_AutomotiveEmptyIllustration()` when `hasNotifications` is false
+- **Do NOT**: Implement custom loading skeletons for mock data - the feature is frontend-only with static data
+
+### 10. Notification Tap Navigation
+- **car** type → `CarDetailsScreen` (if car found in catalogue) or `PlaceholderScreen`
+- **article** type → `ArticleDetailScreen` (if article ID matches) or `PlaceholderScreen`
+- **savedSearch** type → `CarSearchScreen`
+- **general** type → `PlaceholderScreen` with title "Notice" and subtitle "More details are coming soon."
+- **Critical**: All navigation routes must use the established `app_routes.dart` constants
+
+## Implementation Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Single AppNotification Model** | Only one `AppNotification` model from `alerts/models/app_notification.dart` - never create a second |
+| **Single Notifications Store** | Only `NotificationsStore.instance` - the sole data source; no second store |
+| **Single Mock Data List** | Only `mockNotifications` constant list - the sole data source; no second mock list |
+| **Heavy Widget Reuse** | `_NotificationRow`, `_EmptyState`, `_AutomotiveEmptyIllustration`, `PageTopBar` are shared - do NOT copy |
+| **Single Bottom Nav** | 5-item nav only, Alerts at index 4, no second navigation bar |
+| **ETB Pricing** | All prices in Ethiopian Birr where relevant, N/A where not applicable |
+| **Category Colours** | Use consistent mapping: car=teal, article=primary, savedSearch=search, general=rose |
+| **Dismiss direction** | Always `endToStart` with red background - use shared pattern |
+| **Critical warning**: The Alerts feature must not create a second AppNotification model, second NotificationsStore, or second mock data list. These are the top constraints for correct data flow. |
+
+## Development Workflow
+
+1. **Start with compilation**: Fix P0 issues first (missing AppIcons constants, const field changes per P0-3)
+2. **Verify data source**: Ensure all widgets read from `NotificationsStore.instance`, not inline data
+3. **Check notification types**: Verify all 4 types (car, article, savedSearch, general) navigate correctly
+4. **Validate empty state**: Ensure `_EmptyState()` renders when `hasNotifications` is false
+5. **Test swipe actions**: Verify swipe-to-dismiss updates unread count badge correctly
+6. **Test rapid actions**: Ensure no UI errors from rapid swipe/clear all actions
+7. **Verify on device**: Walk through full flow: tab switching, notification list, swipe-to-dismiss, "Clear all", tap navigation, empty state
+
+## What NOT to Do
+
+❌ **Do NOT create a second `AppNotification` model** - import from `models/app_notification.dart` only
+❌ **Do NOT create a second `NotificationsStore`** - use `NotificationsStore.instance` only
+❌ **Do NOT create a second mock data list** - use `mockNotifications` from `data/mock_notifications.dart` only
+❌ **Do NOT duplicate shared widgets** - `_NotificationRow`, `_EmptyState`, `_AutomotiveEmptyIllustration`, `PageTopBar` are shared
+❌ **Do NOT change swipe direction** - always `endToStart` with red background background
+❌ **Do NOT hardcode category colours** - use the consistent mapping: car=teal, article=primary, savedSearch=search, general=rose
+❌ **Do NOT add a second bottom navigation bar** - the shell owns the bottom nav
+❌ **Do NOT invent notification data** - all data must come from `NotificationsStore.instance` and `mockNotifications`
+❌ **Do NOT claim integrations work unless verified** - document limitations (session-only store, lost on app restart)
+
+⚠️ **Critical**: The Alerts feature must not create a second AppNotification model, second NotificationsStore, or second mock data list. These are the top three constraints for correct data flow and state management. The session-only nature of the store must be documented in implementation reports.
+
+This section serves as a guide for the development team to organize code consistently with the project's existing patterns and the `alert.doc` specification, emphasizing the single-model, single-store, and single-mock-data constraints that are fundamental to this feature's architecture.
+
+# 18. DEFINITION OF DONE
+
+The Alerts feature is ready when it compiles cleanly, the notification list renders correctly with read/unread styling, swipe-to-dismiss works, "Clear all" shows/hides appropriately, tap navigation routes to the correct screens, the empty state with illustration appears when there are no notifications, the bottom navigation badge updates correctly, the layout has been checked on an Android device or emulator, and every remaining limitation is documented.
+
+The implementation report must list:
+
+- Files inspected.
+- Files modified or created.
+- Code preserved.
+- Bugs fixed, including the P0 and P1 items from section 14.
+- Redundant code removed and why.
+- `flutter analyze` and `flutter test` results, with pre-existing errors listed separately.
+- Missing integrations and remaining issues.
+
+Do not claim completion until the implementation and verification have actually been performed.
+
+This is the consolidated master specification for the Alerts feature. Use it as the source of truth, then implement it one stage at a time in OpenCode.
