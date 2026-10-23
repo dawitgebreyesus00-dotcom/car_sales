@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'app/theme/app_theme.dart';
 import 'core/utils/auth_status.dart';
 import 'navigation/app_router.dart';
@@ -33,10 +32,7 @@ class _CarSalesAppState extends State<CarSalesApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       routes: AppRouter.routes(),
-      home: NavigationShell(
-        auth: _auth,
-        router: AppRouter.routes(),
-      ),
+      home: NavigationShell(auth: _auth, router: AppRouter.routes()),
     );
   }
 }

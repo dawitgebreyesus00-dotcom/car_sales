@@ -6,11 +6,7 @@ import 'app_routes.dart';
 /// Guards routes that require authentication (Phase 7.3).
 /// If the user is not authenticated, redirects to the Login route.
 class ProtectedRoute extends StatelessWidget {
-  const ProtectedRoute({
-    super.key,
-    required this.auth,
-    required this.child,
-  });
+  const ProtectedRoute({super.key, required this.auth, required this.child});
 
   final AuthStatus auth;
   final Widget child;

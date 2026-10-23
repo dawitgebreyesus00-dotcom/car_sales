@@ -9,43 +9,43 @@ class AppTextStyles {
   AppTextStyles._();
 
   static const TextStyle headline = TextStyle(
-    fontSize: 24,
+    fontSize: 12,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
   );
 
   static const TextStyle title = TextStyle(
-    fontSize: 20,
-    fontWeight: FontWeight.w600,
+    fontSize: 10,
+    fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,
   );
 
   static const TextStyle subtitle = TextStyle(
-    fontSize: 16,
+    fontSize: 8,
     fontWeight: FontWeight.w500,
     color: AppColors.textPrimary,
   );
 
   static const TextStyle body = TextStyle(
-    fontSize: 14,
+    fontSize: 7,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
   );
 
   static const TextStyle caption = TextStyle(
-    fontSize: 12,
+    fontSize: 6,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
   );
 
   static const TextStyle price = TextStyle(
-    fontSize: 18,
+    fontSize: 9,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
   );
 
   static const TextStyle button = TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
+    fontSize: 8,
+    fontWeight: FontWeight.w400,
   );
 }

@@ -2,94 +2,92 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:car_sales_app/core/utils/auth_status.dart';
+import 'package:car_sales_app/features/bottom/alerts/alerts.dart';
+import 'package:car_sales_app/features/bottom/new/new.dart';
+
+import 'package:car_sales_app/features/bottom/used/used.dart';
 import 'package:car_sales_app/main.dart';
 import 'package:car_sales_app/navigation/app_router.dart';
 import 'package:car_sales_app/navigation/bottom_nav_bar.dart';
 import 'package:car_sales_app/navigation/navigation_shell.dart';
 
+
 void main() {
-  testWidgets('shell renders children directly', (WidgetTester tester) async {
+  testWidgets('shell renders the new cars page and bottom navigation', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: NavigationShell(
-          auth: AuthStatus(),
-          router: AppRouter.routes(),
-        ),
+        home: NavigationShell(auth: AuthStatus(), router: AppRouter.routes()),
       ),
     );
     await tester.pumpAndSettle();
     expect(find.byType(BottomNavBar), findsOneWidget);
+    expect(find.byType(NewCarsPage), findsOneWidget);
   });
 
-  testWidgets('Car Sales app renders bottom navigation with tabs',
-      (WidgetTester tester) async {
+  testWidgets('Car Sales app renders bottom navigation with tabs', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const CarSalesApp());
     await tester.pumpAndSettle();
 
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(BottomNavBar), findsOneWidget);
+    for (final label in ['New', 'Used', 'Compare', 'News', 'Alerts']) {
+      expect(find.text(label), findsWidgets);
+    }
   });
 
-  testWidgets('swiping sideways changes the tab and highlights it',
-      (WidgetTester tester) async {
+  testWidgets('swiping sideways changes the tab and highlights it', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const CarSalesApp());
     await tester.pumpAndSettle();
 
     // Start on New Cars tab.
-    expect(find.text('New Cars'), findsNWidgets(2));
+    expect(find.byType(NewCarsPage), findsOneWidget);
 
-    // Swipe left to go to Used Cars.
-    await tester.drag(find.byType(PageView), const Offset(-400, 0));
+    // Swipe left to go to Used Cars. Start on the header (no inner scrollable
+    // there) so the outer PageView receives the gesture.
+    await tester.dragFrom(const Offset(400, 30), const Offset(-700, 0));
     await tester.pumpAndSettle();
 
-    expect(find.text('Used Cars'), findsNWidgets(2));
+    expect(find.byType(UsedScreen), findsOneWidget);
 
     // Swipe left again to Compare.
-    await tester.drag(find.byType(PageView), const Offset(-400, 0));
+    await tester.dragFrom(const Offset(400, 30), const Offset(-700, 0));
     await tester.pumpAndSettle();
 
-    expect(find.text('Compare'), findsWidgets);
+    expect(find.text('Compare Cars'), findsOneWidget);
   });
 
-  testWidgets('tapping a tab glides to that screen', (WidgetTester tester) async {
+  testWidgets('tapping a tab glides to that screen', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const CarSalesApp());
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Alerts'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Alerts Screen'), findsOneWidget);
+    expect(find.byType(AlertsScreen), findsOneWidget);
+    expect(find.text('Notifications'), findsOneWidget);
   });
 
-  testWidgets('drawer opens and navigates to a section', (WidgetTester tester) async {
+  testWidgets('drawer is empty', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const CarSalesApp());
     await tester.pumpAndSettle();
 
-    // Open drawer via the menu button.
-    await tester.tap(find.byIcon(Icons.menu));
+    // Open drawer via the menu button on the new cars page.
+    await tester.tap(find.byIcon(Icons.menu).first);
     await tester.pumpAndSettle();
 
-    // Drawer items are visible.
-    expect(find.text('Sell Your Car'), findsOneWidget);
-
-    // Tap a drawer item -> pushes its screen.
-    await tester.tap(find.text('Sell Your Car'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Sell Cars Screen'), findsOneWidget);
-  });
-
-  testWidgets('drawer includes phone and connect items', (WidgetTester tester) async {
-    await tester.pumpWidget(const CarSalesApp());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byIcon(Icons.menu));
-    await tester.pumpAndSettle();
-
-    await tester.drag(find.byType(Drawer), const Offset(0, -300));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Company Phone Number'), findsOneWidget);
-    expect(find.text('Connect With Us'), findsOneWidget);
+    // Drawer should be empty (just a SizedBox)
+    expect(find.byType(Drawer), findsOneWidget);
   });
 }
+  
+

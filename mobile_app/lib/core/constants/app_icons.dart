@@ -19,12 +19,18 @@ class AppIcons {
   static const IconData notification = Icons.notifications_outlined;
   static const IconData menu = Icons.menu;
   static const IconData location = Icons.location_on_outlined;
+  static const IconData locationCity = Icons.location_city;
   static const IconData home = Icons.home_outlined;
+  static const IconData bookmark = Icons.bookmark;
+  static const IconData bookmarkBorder = Icons.bookmark_border;
+  static const IconData share = Icons.share_outlined;
+  static const IconData person = Icons.person_outline;
 
   // Marketplace / tools
   static const IconData sell = Icons.sell_outlined;
   static const IconData carLoan = Icons.account_balance_wallet_outlined;
   static const IconData emi = Icons.calculate_outlined;
+  static const IconData carListing = Icons.directions_car_outlined;
   static const IconData settings = Icons.settings_outlined;
   static const IconData star = Icons.star_outline;
   static const IconData moreHoriz = Icons.more_horiz;
